@@ -113,8 +113,8 @@
     const app = initializeApp(firebaseConfig);
     const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
-    // COLE A SUA CHAVE DO GOOGLE AI STUDIO AQUI
-    const GEMINI_API_KEY = "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw";
+    // Sua chave informada
+    const GEMINI_API_KEY = "AQ.Ab8RN6K3tCfX5oCgzhZVtr4Qoayj2sa0avnuEm4qoOCA40ehAA";
 
     let enviosGlobais = [];
     let envioAtual = null;
@@ -213,11 +213,7 @@
     }
 
     async function consultarIA(fotoGabaritoBase64, fotoCompetidorBase64, regra, pontosMax) {
-      if (!GEMINI_API_KEY || GEMINI_API_KEY === "SUA_CHAVE_API_AQUI") {
-        return { aprovado: false, pontos: 0, justificativa: "Chave de API do Gemini não configurada no código." };
-      }
-
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
 
       const promptTexto = `
         Compare a FOTO GABARITO (REFERÊNCIA) com a FOTO DO COMPETIDOR.
@@ -249,17 +245,24 @@
       try {
         const response = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GEMINI_API_KEY}`
+          },
           body: JSON.stringify(bodyData)
         });
 
-        if (!response.ok) throw new Error("Erro na API do Gemini");
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Erro na API (${response.status}): ${errText}`);
+        }
 
         const data = await response.json();
         const responseText = data.candidates[0].content.parts[0].text.trim();
         const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
         return JSON.parse(cleanJson);
       } catch (e) {
+        console.error(e);
         return { aprovado: false, pontos: 0, justificativa: "Erro ao consultar IA: " + e.message };
       }
     }
@@ -363,7 +366,6 @@
 
         container.appendChild(card);
 
-        // Atualiza a justificativa local conforme o juiz digita
         document.getElementById(`justificativa-${numTarefa}`).addEventListener('input', (e) => {
           justificativasLocais[numTarefa] = e.target.value;
         });
