@@ -70,19 +70,25 @@
             <p id="eval-data" class="text-xs text-slate-400">Enviado em: --</p>
           </div>
 
-          <div class="flex items-center gap-4 bg-slate-800 p-3 rounded-lg border border-slate-700">
-            <div class="text-right">
-              <span class="text-xs text-slate-400 block">Pontuação Atual</span>
-              <span id="eval-placar-total" class="text-2xl font-bold text-emerald-400">0 pts</span>
-            </div>
-            <button id="btn-finalizar-carro" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm px-5 py-2.5 rounded-lg shadow-md transition flex items-center gap-2">
-              <span>💾 Salvar Avaliação Final</span>
-            </button>
+          <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 text-right">
+            <span class="text-xs text-slate-400 block">Pontuação Atual</span>
+            <span id="eval-placar-total" class="text-2xl font-bold text-emerald-400">0 pts</span>
           </div>
         </div>
 
         <!-- Contêiner dinâmico para as fotos do carro -->
         <div id="container-comparacao" class="space-y-8"></div>
+
+        <!-- BOTÃO DE SALVAMENTO AO FIM DA PÁGINA -->
+        <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 flex justify-between items-center gap-4">
+          <div>
+            <span class="text-xs text-slate-400 block">Total Acumulado:</span>
+            <span id="eval-placar-rodape" class="text-2xl font-bold text-emerald-400">0 pts</span>
+          </div>
+          <button id="btn-finalizar-carro" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base px-8 py-3 rounded-lg shadow-lg transition flex items-center gap-2">
+            <span>💾 Salvar Avaliação Final</span>
+          </button>
+        </div>
 
       </div>
 
@@ -111,10 +117,9 @@
 
     let enviosGlobais = [];
     let envioAtual = null;
-    let notasLocais = {}; // guarda as notas digitadas/clicadas por tarefa
+    let notasLocais = {};
     let filtroStatus = "pendente";
 
-    // Filtros
     document.getElementById('filter-pendente').addEventListener('click', (e) => {
       filtroStatus = "pendente";
       e.target.className = "flex-1 py-1.5 rounded-md bg-indigo-600 font-semibold text-white transition";
@@ -131,7 +136,6 @@
 
     document.getElementById('btn-atualizar').addEventListener('click', carregarEnvios);
 
-    // Buscar envios dos competidores do Firestore
     async function carregarEnvios() {
       const listaDiv = document.getElementById('lista-envios');
       listaDiv.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Atualizando submissões...</p>';
@@ -153,7 +157,6 @@
       }
     }
 
-    // Renderizar a lista de carros no menu esquerdo
     function renderizarListaEnvios() {
       const listaDiv = document.getElementById('lista-envios');
       listaDiv.innerHTML = '';
@@ -195,10 +198,9 @@
       });
     }
 
-    // Abrir painel de comparação do carro escolhido
     function selecionarCarroParaAvaliar(envio) {
       envioAtual = envio;
-      notasLocais = {}; // reset
+      notasLocais = {};
 
       document.getElementById('empty-state').classList.add('hidden');
       document.getElementById('eval-content').classList.remove('hidden');
@@ -210,41 +212,34 @@
       document.getElementById('eval-data').textContent = `Enviado em: ${dataStr}`;
 
       renderizarComparativo(envio.respostas || []);
-      renderizarListaEnvios(); // atualiza borda de seleção
+      renderizarListaEnvios();
     }
 
-    // Renderiza cada tarefa com o gabarito vs foto do competidor lado a lado
     function renderizarComparativo(respostas) {
       const container = document.getElementById('container-comparacao');
       container.innerHTML = '';
 
-      let placarTotal = 0;
-
       respostas.forEach((item, index) => {
         const numTarefa = item.ordem || (index + 1);
-        const pontosMax = item.regras?.pontos || 100;
+        const pontosSugeridos = item.regras?.pontos || 100;
 
-        // Se já foi avaliado anteriormente, pega a nota dada. Se não, inicia com nota 0 ou nota máxima.
         const notaInicial = item.pontos_concedidos !== undefined ? item.pontos_concedidos : 0;
         notasLocais[numTarefa] = notaInicial;
-        placarTotal += notaInicial;
 
         const card = document.createElement('div');
         card.className = "bg-slate-900 rounded-xl p-5 border border-slate-700 space-y-4";
 
         card.innerHTML = `
-          <!-- Header da Tarefa -->
           <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">
             <h3 class="font-bold text-white text-base flex items-center gap-2">
               <span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">${numTarefa}</span>
               Tarefa #${numTarefa}
             </h3>
             <span class="text-xs bg-slate-800 text-indigo-300 border border-indigo-800/60 px-3 py-1 rounded-full font-semibold">
-              Valor Máximo: ${pontosMax} PONTOS
+              Valor Sugerido: ${pontosSugeridos} PONTOS
             </span>
           </div>
 
-          <!-- REGRAS DA PEGADINHA (Visíveis apenas para o Juiz) -->
           <div class="bg-indigo-950/40 border border-indigo-800/40 rounded-lg p-3 text-xs text-indigo-200 flex flex-wrap gap-4 items-center">
             <span class="font-bold text-indigo-400">🔍 Critérios do Gabarito:</span>
             <span>👥 <strong>Pessoas:</strong> ${item.regras?.qtd_competidores || 1}</span>
@@ -252,29 +247,23 @@
             ${item.regras?.pegadinhas ? `<span class="text-amber-300">💡 <strong>Pegadinha:</strong> ${item.regras.pegadinhas}</span>` : ''}
           </div>
 
-          <!-- FOTOS LADO A LADO -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            
-            <!-- LADO ESQUERDO: GABARITO (ADMIN) -->
             <div class="bg-slate-800/80 p-3 rounded-lg border border-slate-700">
               <span class="text-xs font-bold text-slate-400 block mb-2 uppercase">📌 Gabarito Oficial (Referência)</span>
               <img src="${item.foto_gabarito_url}" class="w-full h-60 object-cover rounded-md border border-slate-600 bg-black cursor-pointer hover:opacity-95 transition" onclick="window.open('${item.foto_gabarito_url}')" title="Clique para ampliar">
             </div>
 
-            <!-- LADO DIREITO: FOTO DO COMPETIDOR -->
             <div class="bg-slate-800/80 p-3 rounded-lg border border-slate-700">
               <span class="text-xs font-bold text-emerald-400 block mb-2 uppercase">📸 Foto Enviada pelo Competidor</span>
               <img src="${item.foto_competidor_url}" class="w-full h-60 object-cover rounded-md border border-slate-600 bg-black cursor-pointer hover:opacity-95 transition" onclick="window.open('${item.foto_competidor_url}')" title="Clique para ampliar">
             </div>
-
           </div>
 
-          <!-- CONTROLES DE PONTUAÇÃO DO JUIZ -->
           <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 flex flex-wrap justify-between items-center gap-4">
             <div class="flex items-center gap-2">
               <span class="text-xs font-bold text-slate-300">Ação Rápida:</span>
-              <button type="button" onclick="atribuirNota(${numTarefa}, ${pontosMax})" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded transition flex items-center gap-1">
-                <span>✅ Aprovar (${pontosMax} pts)</span>
+              <button type="button" onclick="atribuirNota(${numTarefa}, ${pontosSugeridos})" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded transition flex items-center gap-1">
+                <span>✅ Aprovar (${pontosSugeridos} pts)</span>
               </button>
               <button type="button" onclick="atribuirNota(${numTarefa}, 0)" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold px-3 py-2 rounded transition flex items-center gap-1">
                 <span>❌ Reprovar (0 pts)</span>
@@ -283,8 +272,8 @@
 
             <div class="flex items-center gap-2">
               <label class="text-xs text-slate-300 font-semibold">Nota Concedida:</label>
-              <input type="number" id="input-nota-${numTarefa}" value="${notaInicial}" min="0" max="${pontosMax}" onchange="atualizarNotaManual(${numTarefa}, this.value, ${pontosMax})" class="w-20 bg-slate-900 border border-slate-600 text-center font-bold text-emerald-400 rounded py-1.5 focus:ring-2 focus:ring-indigo-500 outline-none">
-              <span class="text-xs text-slate-400">/ ${pontosMax}</span>
+              <input type="number" id="input-nota-${numTarefa}" value="${notaInicial}" min="0" onchange="atualizarNotaManual(${numTarefa}, this.value)" class="w-24 bg-slate-900 border border-slate-600 text-center font-bold text-emerald-400 rounded py-1.5 focus:ring-2 focus:ring-indigo-500 outline-none">
+              <span class="text-xs text-slate-400">pts</span>
             </div>
           </div>
         `;
@@ -295,17 +284,15 @@
       atualizarPlacarTotal();
     }
 
-    // Funções globais de atribuição de nota
     window.atribuirNota = function(numTarefa, pontos) {
       notasLocais[numTarefa] = pontos;
       document.getElementById(`input-nota-${numTarefa}`).value = pontos;
       atualizarPlacarTotal();
     };
 
-    window.atualizarNotaManual = function(numTarefa, valor, max) {
-      let pts = parseInt(valor) || 0;
-      if (pts < 0) pts = 0;
-      if (pts > max) pts = max;
+    window.atualizarNotaManual = function(numTarefa, valor) {
+      let pts = parseInt(valor);
+      if (isNaN(pts) || pts < 0) pts = 0;
       notasLocais[numTarefa] = pts;
       document.getElementById(`input-nota-${numTarefa}`).value = pts;
       atualizarPlacarTotal();
@@ -315,9 +302,9 @@
       let total = 0;
       Object.values(notasLocais).forEach(pts => total += pts);
       document.getElementById('eval-placar-total').textContent = `${total} pts`;
+      document.getElementById('eval-placar-rodape').textContent = `${total} pts`;
     }
 
-    // Gravar a pontuação final no Firestore
     document.getElementById('btn-finalizar-carro').addEventListener('click', async () => {
       if (!envioAtual) return;
 
@@ -359,7 +346,6 @@
       }
     });
 
-    // Iniciar carregamento das submissões ao abrir a tela
     carregarEnvios();
   </script>
 </body>
