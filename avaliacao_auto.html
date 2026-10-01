@@ -101,7 +101,7 @@
     const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
     // COLE A SUA CHAVE DO GOOGLE AI STUDIO AQUI
-    const GEMINI_API_KEY = "SUA_CHAVE_API_AQUI"; 
+    const GEMINI_API_KEY = "AQ.Ab8RN6KypNeScTxDwSBKjOAqfXld_HHfw4vjuW635CWcecB1Ig"; 
 
     let enviosGlobais = [];
 
@@ -180,7 +180,7 @@
     }
 
     async function avaliarFotoComIA(fotoGabaritoBase64, fotoCompetidorBase64, regra, pontosMax) {
-      if (!GEMINI_API_KEY || GEMINI_API_KEY === "SUA_CHAVE_API_AQUI") {
+      if (!GEMINI_API_KEY || GEMINI_API_KEY === "AQ.Ab8RN6KypNeScTxDwSBKjOAqfXld_HHfw4vjuW635CWcecB1Ig") {
         alert("⚠️ Por favor, insira sua chave do Google AI Studio na variável GEMINI_API_KEY no código!");
         throw new Error("Chave de API não configurada.");
       }
