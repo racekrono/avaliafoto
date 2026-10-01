@@ -18,7 +18,7 @@
       <span class="text-2xl">⚖️</span>
       <div>
         <h1 class="text-lg font-bold text-white">Painel do Juiz - Avaliação de Fotos</h1>
-        <p class="text-xs text-slate-400">Conferência de Gabaritos, IA e Pontuação da Gincana</p>
+        <p class="text-xs text-slate-400">Conferência de Gabaritos, IA (Groq) e Pontuação</p>
       </div>
     </div>
     
@@ -27,7 +27,7 @@
       <!-- Abas de Navegação -->
       <div class="flex bg-slate-900 p-1 rounded-lg border border-slate-700 mr-2">
         <button id="tab-btn-manual" class="px-3 py-1.5 rounded-md bg-indigo-600 text-white font-semibold text-xs transition">Manual</button>
-        <button id="tab-btn-auto" class="px-3 py-1.5 rounded-md text-slate-400 hover:text-white text-xs transition">🤖 Automática (IA)</button>
+        <button id="tab-btn-auto" class="px-3 py-1.5 rounded-md text-slate-400 hover:text-white text-xs transition">🤖 Automática (Groq IA)</button>
       </div>
 
       <button id="btn-exportar-pdf" class="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-2 rounded-lg border border-emerald-600 transition flex items-center gap-1.5 shadow-sm">
@@ -115,15 +115,25 @@
 
   </main>
 
-  <!-- CONTEÚDO DA AVALIAÇÃO AUTOMÁTICA (IA) -->
+  <!-- CONTEÚDO DA AVALIAÇÃO AUTOMÁTICA (IA GROQ) -->
   <main id="view-auto" class="max-w-5xl mx-auto p-4 md:p-6 hidden space-y-6">
     <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-6">
       
       <div class="flex items-center justify-between pb-4 border-b border-slate-700">
         <div>
-          <h2 class="text-xl font-bold text-white flex items-center gap-2"><span>🤖</span> Painel de Avaliação Automática por IA</h2>
-          <p class="text-xs text-slate-400">Selecione o competidor e a tarefa para o Gemini analisar de forma automática.</p>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2"><span>🤖</span> Painel de Avaliação Automática (Groq IA)</h2>
+          <p class="text-xs text-slate-400">Selecione o competidor e a tarefa para a IA analisar de forma automática.</p>
         </div>
+      </div>
+
+      <!-- Configuração da Chave da Groq -->
+      <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-2">
+        <label class="block text-xs font-bold text-slate-300">Chave da API Groq (Armazenada apenas no seu navegador):</label>
+        <div class="flex gap-2">
+          <input type="password" id="input-groq-key" placeholder="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" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+          <button id="btn-salvar-groq-key" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition">Salvar Chave</button>
+        </div>
+        <p class="text-[10px] text-slate-400">Você pode obter uma chave gratuita em <a href="https://console.groq.com/" target="_blank" class="text-indigo-400 underline">console.groq.com</a></p>
       </div>
 
       <!-- Formulário de Seleção -->
@@ -146,7 +156,7 @@
       <!-- Botão de Análise -->
       <div class="flex justify-end pt-2">
         <button id="btn-analisar-ia" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm px-6 py-3 rounded-lg transition flex items-center gap-2 shadow-lg disabled:opacity-50" disabled>
-          <span>✨ Analisar com IA (Gemini)</span>
+          <span>✨ Analisar com IA (Groq)</span>
         </button>
       </div>
 
@@ -200,8 +210,24 @@
     let enviosGlobais = [];
     let envioAtual = null;
     let notasLocais = {};     
-    let decisoesTomadas = {}; 
+    let decisoesTomadas; 
     let filtroStatus = "pendente";
+
+    // Carregar chave salva no navegador se houver
+    const savedGroqKey = localStorage.getItem('groq_api_key');
+    if (savedGroqKey) {
+      document.getElementById('input-groq-key').value = savedGroqKey;
+    }
+
+    document.getElementById('btn-salvar-groq-key').addEventListener('click', () => {
+      const key = document.getElementById('input-groq-key').value.trim();
+      if (!key) {
+        alert("Digite uma chave válida!");
+        return;
+      }
+      localStorage.setItem('groq_api_key', key);
+      alert("Chave salva com sucesso no navegador!");
+    });
 
     // --- CONTROLE DE ABAS ---
     const tabBtnManual = document.getElementById('tab-btn-manual');
@@ -478,7 +504,7 @@
       }
     });
 
-    // --- LÓGICA DE AVALIAÇÃO AUTOMÁTICA (IA VIA CLOUD FUNCTION) ---
+    // --- LÓGICA DE AVALIAÇÃO AUTOMÁTICA (IA GROQ) ---
     async function popularSelectCompetidoresAuto() {
       const selectComp = document.getElementById('auto-select-competidor');
       selectComp.innerHTML = '<option value="">Selecione um carro...</option>';
@@ -534,6 +560,12 @@
     }
 
     document.getElementById('btn-analisar-ia').addEventListener('click', async () => {
+      const groqKey = document.getElementById('input-groq-key').value.trim();
+      if (!groqKey) {
+        alert("Por favor, insira e salve sua chave da API da Groq no campo acima.");
+        return;
+      }
+
       const compId = document.getElementById('auto-select-competidor').value;
       const tarefaNum = parseInt(document.getElementById('auto-select-tarefa').value);
       
@@ -545,7 +577,7 @@
 
       const btn = document.getElementById('btn-analisar-ia');
       btn.disabled = true;
-      btn.innerHTML = '<span>⏳ Analisando via Servidor...</span>';
+      btn.innerHTML = '<span>⏳ Analisando via Groq (IA)...</span>';
 
       try {
         document.getElementById('auto-img-gabarito').src = respostaObj.foto_gabarito_url;
@@ -557,27 +589,45 @@
           urlParaBase64(respostaObj.foto_competidor_url)
         ]);
 
-        // URL da sua Cloud Function do Firebase
-        const functionUrl = "https://us-central1-teste-2994e.cloudfunctions.net/analisarFotoGemini";
+        const promptText = `Você é um juiz rigoroso de uma gincana de rali e automóveis. 
+Compare a primeira imagem (Gabarito Oficial) com a segunda imagem (Foto do Competidor).
+Critérios da tarefa: 
+- Quantidade de pessoas exigidas: ${respostaObj.regras?.qtd_competidores || 1}
+- Exige Carro: ${respostaObj.regras?.exigir_carro ? 'Sim' : 'Não'}
 
-        const apiResponse = await fetch(functionUrl, {
+Responda estritamente em formato JSON válido contendo exatamente duas chaves:
+1. "aprovado": booleano (true se cumpre perfeitamente o gabarito e critérios, false caso contrário).
+2. "justificativa": string detalhada em português explicando o motivo da aprovação ou reprovação.`;
+
+        const apiResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: 'POST',
           headers: {
+            'Authorization': `Bearer ${groqKey}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            base64Gabarito,
-            base64Competidor,
-            regras: respostaObj.regras || {}
+            model: "llama-3.2-90b-vision-preview",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: promptText },
+                  { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Gabarito}` } },
+                  { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Competidor}` } }
+                ]
+              }
+            ],
+            response_format: { type: "json_object" }
           })
         });
 
         if (!apiResponse.ok) {
           const errData = await apiResponse.json();
-          throw new Error(errData.error || "Erro ao processar na nuvem");
+          throw new Error(errData.error?.message || "Erro na API da Groq");
         }
 
-        const resultadoJson = await apiResponse.json();
+        const data = await apiResponse.json();
+        const resultadoJson = JSON.parse(data.choices[0].message.content);
         
         const badge = document.getElementById('auto-badge-status');
         const texto = document.getElementById('auto-texto-justificativa');
@@ -618,7 +668,7 @@
         alert("Erro ao processar com a IA: " + err.message);
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '<span>✨ Analisar com IA (Gemini)</span>';
+        btn.innerHTML = '<span>✨ Analisar com IA (Groq)</span>';
       }
     });
 
