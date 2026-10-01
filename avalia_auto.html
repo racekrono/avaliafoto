@@ -9,14 +9,6 @@
   <!-- Bibliotecas para Geração de PDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-  <!-- Google Generative AI SDK (Gemini) -->
-  <script type="importmap">
-    {
-      "imports": {
-        "@google/genai": "https://esm.run/@google/genai"
-      }
-    }
-  </script>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans min-h-screen">
 
@@ -192,7 +184,6 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { initializeFirestore, collection, getDocs, doc, getDoc, updateDoc, writeBatch, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-    import { GoogleGenAI } from "@google/genai";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
@@ -206,7 +197,7 @@
     const app = initializeApp(firebaseConfig);
     const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
-    // Chave da API do Gemini inserida diretamente no código
+    // Sua Chave no novo padrão AQ...
     const GEMINI_API_KEY = "AQ.Ab8RN6LbTbV2Ip3VWI5mxwCioG25R4p25ZFeMmtPygTpDAVDjw";
 
     let enviosGlobais = [];
@@ -569,9 +560,6 @@
           urlParaBase64(respostaObj.foto_competidor_url)
         ]);
 
-        // Utilizando a chave integrada diretamente
-        const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-        
         const prompt = `Você é um juiz rigoroso de uma gincana de rali e automóveis. 
 Compare a "Foto do Gabarito (Referência)" com a "Foto enviada pelo Competidor".
 Critérios da tarefa: 
@@ -582,21 +570,39 @@ Responda estritamente em formato JSON com duas chaves:
 1. "aprovado": booleano (true se cumpre perfeitamente o gabarito e critérios, false caso contrário).
 2. "justificativa": string detalhada em português explicando o motivo da aprovação ou reprovação.`;
 
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: [
-            { text: "Foto do Gabarito Oficial:" },
-            { inlineData: { mimeType: "image/jpeg", data: base64Gabarito } },
-            { text: "Foto enviada pelo Competidor:" },
-            { inlineData: { mimeType: "image/jpeg", data: base64Competidor } },
-            { text: prompt }
-          ],
-          config: {
-            responseMimeType: "application/json"
-          }
+        // Para chaves no formato novo AQ..., a API exige o envio via header 'x-goog-api-key'
+        const apiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': GEMINI_API_KEY
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: "Foto do Gabarito Oficial:" },
+                  { inline_data: { mime_type: "image/jpeg", data: base64Gabarito } },
+                  { text: "Foto enviada pelo Competidor:" },
+                  { inline_data: { mime_type: "image/jpeg", data: base64Competidor } },
+                  { text: prompt }
+                ]
+              }
+            ],
+            generationConfig: {
+              responseMimeType: "application/json"
+            }
+          })
         });
 
-        const resultadoJson = JSON.parse(response.text);
+        if (!apiResponse.ok) {
+          const errData = await apiResponse.json();
+          throw new Error(errData.error?.message || "Erro de autenticação na API do Gemini");
+        }
+
+        const data = await apiResponse.json();
+        const textoResposta = data.candidates[0].content.parts[0].text;
+        const resultadoJson = JSON.parse(textoResposta);
         
         const badge = document.getElementById('auto-badge-status');
         const texto = document.getElementById('auto-texto-justificativa');
