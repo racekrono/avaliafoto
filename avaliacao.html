@@ -6,6 +6,9 @@
   <title>Juiz - Painel de Avaliação da Gincana</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Bibliotecas para Geração de PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans min-h-screen">
 
@@ -18,10 +21,19 @@
         <p class="text-xs text-slate-400">Conferência de Gabaritos e Pontuação da Gincana</p>
       </div>
     </div>
-    <div class="flex items-center gap-3">
-      <span class="text-xs bg-indigo-900 text-indigo-200 px-3 py-1 rounded-full border border-indigo-700">Projeto: teste-2994e</span>
-      <button id="btn-atualizar" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-1.5 rounded-lg border border-slate-600 transition flex items-center gap-1">
-        <span>🔄</span> Atualizar Lista
+    
+    <!-- Botões de Ação Global no Header -->
+    <div class="flex items-center gap-2 flex-wrap">
+      <button id="btn-exportar-pdf" class="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-2 rounded-lg border border-emerald-600 transition flex items-center gap-1.5 shadow-sm">
+        <span>📄 Exportar Resultados (PDF)</span>
+      </button>
+
+      <button id="btn-atualizar" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded-lg border border-slate-600 transition flex items-center gap-1">
+        <span>🔄 Atualizar</span>
+      </button>
+
+      <button id="btn-zerar-banco" class="bg-rose-900/80 hover:bg-rose-700 text-rose-200 hover:text-white border border-rose-700 text-xs font-semibold px-3 py-2 rounded-lg transition flex items-center gap-1">
+        <span>🗑️ Zerar Banco</span>
       </button>
     </div>
   </header>
@@ -79,7 +91,7 @@
         <!-- Contêiner dinâmico para as fotos do carro -->
         <div id="container-comparacao" class="space-y-8"></div>
 
-        <!-- BOTÃO DE SALVAMENTO -->
+        <!-- BOTÃO DE SALVAMENTO AO FIM DA PÁGINA -->
         <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 flex justify-between items-center gap-4">
           <div>
             <span class="text-xs text-slate-400 block">Total Acumulado:</span>
@@ -99,7 +111,7 @@
   <!-- Módulo Firebase JS (v10) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { initializeFirestore, collection, getDocs, doc, getDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { initializeFirestore, collection, getDocs, doc, getDoc, updateDoc, writeBatch, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
@@ -211,7 +223,6 @@
       const dataStr = envio.enviado_em ? new Date(envio.enviado_em.seconds * 1000).toLocaleString() : 'Recentemente';
       document.getElementById('eval-data').textContent = `Enviado em: ${dataStr}`;
 
-      // Busca os dados da prova original no Firestore para obter os pontos cadastrados no Admin
       let tarefasGabarito = [];
       if (envio.prova_id) {
         try {
@@ -235,11 +246,9 @@
       respostas.forEach((item, index) => {
         const numTarefa = item.ordem || (index + 1);
 
-        // Busca o valor cadastrado na prova gabarito pelo Admin
         const tarefaOriginal = tarefasGabarito.find(t => (t.ordem || 0) === numTarefa) || tarefasGabarito[index];
         const pontosOficiais = tarefaOriginal?.pontos ?? item.regras?.pontos ?? 100;
 
-        // Mantém a nota já salva se a avaliação já foi gravada antes
         const notaInicial = item.pontos_concedidos !== undefined ? item.pontos_concedidos : 0;
         notasLocais[numTarefa] = notaInicial;
 
@@ -332,6 +341,7 @@
       document.getElementById('eval-placar-rodape').textContent = `${total} pts`;
     }
 
+    // SALVAR AVALIAÇÃO FINAL DO CARRO
     document.getElementById('btn-finalizar-carro').addEventListener('click', async () => {
       if (!envioAtual) return;
 
@@ -370,6 +380,93 @@
         alert("Erro ao salvar avaliação: " + err.message);
         btn.disabled = false;
         btn.innerHTML = '<span>💾 Salvar Avaliação Final</span>';
+      }
+    });
+
+    // 1. EXPORTAR RESULTADOS EM PDF
+    document.getElementById('btn-exportar-pdf').addEventListener('click', () => {
+      if (enviosGlobais.length === 0) {
+        alert("Não há dados de submissões para exportar!");
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const docPdf = new jsPDF();
+
+      // Cabeçalho do PDF
+      docPdf.setFontSize(18);
+      docPdf.text("Relatório da Gincana - Classificação Geral", 14, 20);
+      
+      docPdf.setFontSize(10);
+      docPdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 28);
+      docPdf.text(`Total de Carros/Equipes: ${enviosGlobais.length}`, 14, 34);
+
+      // Ordenar carros por pontuação (Maior -> Menor)
+      const ranking = [...enviosGlobais].sort((a, b) => (b.pontuacao_total || 0) - (a.pontuacao_total || 0));
+
+      const tableBody = ranking.map((item, index) => {
+        const posicao = `#${index + 1}`;
+        const carro = `Carro #${item.numero_carro}`;
+        const prova = item.nome_prova || "Gincana";
+        const pontos = item.pontuacao_total !== undefined ? `${item.pontuacao_total} pts` : "Pendente";
+        const status = item.status_avaliacao === 'avaliado' ? 'Avaliado' : 'Pendente';
+        
+        return [posicao, carro, prova, status, pontos];
+      });
+
+      // Tabela no PDF
+      docPdf.autoTable({
+        startY: 40,
+        head: [['Posição', 'Equipe / Carro', 'Prova', 'Status', 'Pontuação Total']],
+        body: tableBody,
+        theme: 'striped',
+        headStyles: { fillColor: [16, 185, 129] } // Cor verde emerald
+      });
+
+      docPdf.save(`Resultado_Gincana_${new Date().toISOString().slice(0,10)}.pdf`);
+    });
+
+    // 2. APAGAR TODOS OS DADOS DO BANCO (SENHA 123456)
+    document.getElementById('btn-zerar-banco').addEventListener('click', async () => {
+      const senha = prompt("🔒 ATENÇÃO: Esta ação apagarante TODAS as provas e envios do banco de dados!\n\nDigite a senha de confirmação para continuar:");
+
+      if (senha === null) return; // cancelou
+
+      if (senha !== "123456") {
+        alert("❌ Senha incorreta! Operação cancelada.");
+        return;
+      }
+
+      if (!confirm("⚠️️ Tem certeza absoluta? Todos os dados serão excluídos do Firebase permanentemente.")) {
+        return;
+      }
+
+      const btn = document.getElementById('btn-zerar-banco');
+      btn.disabled = true;
+      btn.textContent = "⌛ Apagando banco...";
+
+      try {
+        const batch = writeBatch(db);
+
+        // Buscar todos os documentos de 'provas'
+        const snapshotProvas = await getDocs(collection(db, "provas"));
+        snapshotProvas.forEach((docSnap) => batch.delete(docSnap.ref));
+
+        // Buscar todos os documentos de 'envios_competidores'
+        const snapshotEnvios = await getDocs(collection(db, "envios_competidores"));
+        snapshotEnvios.forEach((docSnap) => batch.delete(docSnap.ref));
+
+        // Executa a exclusão em lote
+        await batch.commit();
+
+        alert("✅ Banco de dados limpo com sucesso! Todos os registros foram removidos.");
+        location.reload();
+
+      } catch (err) {
+        console.error("Erro ao zerar banco:", err);
+        alert("Erro ao zerar banco de dados: " + err.message);
+        btn.disabled = false;
+        btn.innerHTML = "<span>🗑️ Zerar Banco</span>";
       }
     });
 
