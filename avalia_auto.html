@@ -56,6 +56,9 @@
     .cursor-pointer { cursor: pointer; }
     .overflow-y-auto { overflow-y: auto; }
   </style>
+  <!-- Bibliotecas para Geração de PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 
@@ -428,7 +431,7 @@
       document.getElementById('eval-placar-rodape').textContent = `${total} pts`;
     }
 
-    // FUNÇÃO DE CHAMADA À API GROQ VISION PARA UMA TAREFA
+    // FUNÇÃO DE CHAMADA À API GROQ VISION PARA UMA TAREFA (COM CORREÇÃO DE PREFIXO BASE64)
     window.avaliarTarefaUnicaIA = async function(numTarefa, pontosMaximos) {
       if (!envioAtual || !envioAtual.respostas) return;
 
@@ -443,6 +446,16 @@
       }
 
       try {
+        let imgGabarito = respObj.foto_gabarito_url;
+        if (imgGabarito && !imgGabarito.startsWith('data:image')) {
+          imgGabarito = `data:image/jpeg;base64,${imgGabarito}`;
+        }
+
+        let imgCompetidor = respObj.foto_competidor_url;
+        if (imgCompetidor && !imgCompetidor.startsWith('data:image')) {
+          imgCompetidor = `data:image/jpeg;base64,${imgCompetidor}`;
+        }
+
         const promptText = `Você é um juiz experiente de uma gincana automotiva de fotografia. 
 Compare a "FOTO GABARITO (Referência)" com a "FOTO DO COMPETIDOR".
 Critérios da tarefa:
@@ -461,8 +474,8 @@ Responda estritamente em formato JSON válido com duas chaves:
               role: "user",
               content: [
                 { type: "text", text: promptText },
-                { type: "image_url", image_url: { url: respObj.foto_gabarito_url } },
-                { type: "image_url", image_url: { url: respObj.foto_competidor_url } }
+                { type: "image_url", image_url: { url: imgGabarito } },
+                { type: "image_url", image_url: { url: imgCompetidor } }
               ]
             }
           ],
@@ -480,7 +493,8 @@ Responda estritamente em formato JSON válido com duas chaves:
         });
 
         if (!response.ok) {
-          throw new Error(`Erro na API Groq: ${response.status}`);
+          const errData = await response.text();
+          throw new Error(`Erro HTTP ${response.status}: ${errData}`);
         }
 
         const data = await response.json();
@@ -595,6 +609,16 @@ Responda estritamente em formato JSON válido com duas chaves:
             const ptsMax = tarefaOrig?.pontos ?? resp.regras?.pontos ?? 100;
 
             try {
+              let imgGabarito = resp.foto_gabarito_url;
+              if (imgGabarito && !imgGabarito.startsWith('data:image')) {
+                imgGabarito = `data:image/jpeg;base64,${imgGabarito}`;
+              }
+
+              let imgCompetidor = resp.foto_competidor_url;
+              if (imgCompetidor && !imgCompetidor.startsWith('data:image')) {
+                imgCompetidor = `data:image/jpeg;base64,${imgCompetidor}`;
+              }
+
               const promptText = `Você é um juiz experiente de gincana automotiva. Compare a "FOTO GABARITO" com a "FOTO DO COMPETIDOR".
 Critérios: Pessoas exigidas: ${resp.regras?.qtd_competidores || 1}, Exigir carro: ${resp.regras?.exigir_carro ? 'SIM' : 'NÃO'}, Pegadinha: "${resp.regras?.pegadinhas || 'Nenhuma'}".
 Responda estritamente em JSON com chaves: "status" ("APROVADO" ou "REPROVADO") e "justificativa" (curta, máx 2 frases).`;
@@ -605,8 +629,8 @@ Responda estritamente em JSON com chaves: "status" ("APROVADO" ou "REPROVADO") e
                   role: "user",
                   content: [
                     { type: "text", text: promptText },
-                    { type: "image_url", image_url: { url: resp.foto_gabarito_url } },
-                    { type: "image_url", image_url: { url: resp.foto_competidor_url } }
+                    { type: "image_url", image_url: { url: imgGabarito } },
+                    { type: "image_url", image_url: { url: imgCompetidor } }
                   ]
                 }],
                 response_format: { type: "json_object" },
