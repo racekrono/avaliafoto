@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IA 100% Automática - Avaliação de Fotos</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Bibliotecas para Geração de PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl">🤖</span>
+      <div>
+        <h1 class="text-lg font-bold text-white">Avaliação 100% Automática (Gemini IA)</h1>
+        <p class="text-xs text-slate-400">Processamento Autônomo de Visão Computacional</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="btn-exportar-pdf" class="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition flex items-center gap-1.5">
+        <span>📄 Exportar PDF</span>
+      </button>
+      <button id="btn-atualizar" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded-lg border border-slate-600 transition">
+        🔄 Atualizar
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
+
+    <!-- Painel Principal de Controle -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-4">
+      <div class="flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-white">Fila de Processamento por IA</h2>
+          <p class="text-xs text-slate-400">Analisa o gabarito vs a foto enviada pelo competidor e aplica a pontuação cadastrada.</p>
+        </div>
+        <button id="btn-iniciar-ia" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-3 rounded-lg shadow-lg transition flex items-center gap-2 text-sm">
+          <span>🚀 Iniciar Avaliação Automática por IA</span>
+        </button>
+      </div>
+
+      <!-- Barra de Progresso do Lote -->
+      <div id="progress-box" class="hidden bg-slate-900 p-4 rounded-lg border border-slate-700 space-y-2">
+        <div class="flex justify-between text-xs text-slate-300">
+          <span id="progress-text">Aguardando início...</span>
+          <span id="progress-percent" class="font-bold text-indigo-400">0%</span>
+        </div>
+        <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
+          <div id="progress-bar" class="bg-indigo-500 h-full w-0 transition-all duration-300"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabela de Submissões e Resultados da IA -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-4">
+      <h3 class="font-bold text-slate-200">Resultados e Status dos Carros</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-slate-300">
+          <thead class="bg-slate-900 text-xs text-slate-400 uppercase border-b border-slate-700">
+            <tr>
+              <th class="p-3">Equipe / Carro</th>
+              <th class="p-3">Prova</th>
+              <th class="p-3">Enviado Em</th>
+              <th class="p-3">Status</th>
+              <th class="p-3">Pontuação Total</th>
+              <th class="p-3 text-right">Análise IA</th>
+            </tr>
+          </thead>
+          <tbody id="table-body" class="divide-y divide-slate-700">
+            <tr>
+              <td colspan="6" class="p-6 text-center text-xs text-slate-500">Carregando dados do banco...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Módulo Firebase JS & Gemini SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { initializeFirestore, collection, getDocs, doc, getDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
+      authDomain: "teste-2994e.firebaseapp.com",
+      projectId: "teste-2994e",
+      storageBucket: "teste-2994e.firebasestorage.app",
+      messagingSenderId: "614899420753",
+      appId: "1:614899420753:web:5fc23c3d0e8facdf593270"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+    
+    // Configura o Gemini com a API Key do projeto
+    const genAI = new GoogleGenerativeAI(firebaseConfig.apiKey);
+
+    let enviosGlobais = [];
+
+    document.getElementById('btn-atualizar').addEventListener('click', carregarEnvios);
+
+    async function carregarEnvios() {
+      const tbody = document.getElementById('table-body');
+      tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-xs text-slate-400">Atualizando submissões...</td></tr>';
+
+      try {
+        const q = query(collection(db, "envios_competidores"), orderBy("enviado_em", "desc"));
+        const snapshot = await getDocs(q);
+
+        enviosGlobais = [];
+        snapshot.forEach((docSnap) => {
+          enviosGlobais.push({ id: docSnap.id, ...docSnap.data() });
+        });
+
+        renderizarTabela();
+      } catch (err) {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-xs text-rose-400">Erro ao carregar envios.</td></tr>';
+      }
+    }
+
+    function renderizarTabela() {
+      const tbody = document.getElementById('table-body');
+      tbody.innerHTML = '';
+
+      if (enviosGlobais.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-xs text-slate-500">Nenhum envio registrado no banco.</td></tr>';
+        return;
+      }
+
+      enviosGlobais.forEach((item) => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-700/50 transition";
+
+        const dataStr = item.enviado_em ? new Date(item.enviado_em.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+        const isAvaliado = item.status_avaliacao === 'avaliado';
+
+        tr.innerHTML = `
+          <td class="p-3 font-bold text-white">Carro #${item.numero_carro}</td>
+          <td class="p-3 text-slate-300 text-xs">${item.nome_prova || 'Gincana'}</td>
+          <td class="p-3 text-slate-400 text-xs">${dataStr}</td>
+          <td class="p-3">
+            <span class="text-xs px-2.5 py-1 rounded-full font-semibold ${isAvaliado ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-amber-950 text-amber-300 border border-amber-800'}">
+              ${isAvaliado ? '✅ Avaliado' : '⏳ Pendente'}
+            </span>
+          </td>
+          <td class="p-3 font-bold text-base ${item.pontuacao_total !== undefined ? 'text-emerald-400' : 'text-slate-500'}">
+            ${item.pontuacao_total !== undefined ? item.pontuacao_total + ' pts' : '--'}
+          </td>
+          <td class="p-3 text-right">
+            <span class="text-xs text-slate-400" id="status-ia-${item.id}">
+              ${isAvaliado ? 'Processado' : 'Aguardando'}
+            </span>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Função de auxílio para converter URL Base64 para estrutura de imagem aceita pelo Gemini
+    function base64ToGenerativePart(base64Data) {
+      const matches = base64Data.match(/^data:(.+);base64,(.+)$/);
+      if (!matches) {
+        return { inlineData: { data: base64Data, mimeType: "image/jpeg" } };
+      }
+      return {
+        inlineData: {
+          data: matches[2],
+          mimeType: matches[1]
+        }
+      };
+    }
+
+    // Chamada à API da IA para analisar 1 foto
+    async function analisarFotoComIA(fotoGabaritoBase64, fotoCompetidorBase64, regra, pontosMax) {
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const prompt = `
+        Você é um juiz de gincana fotográfica altamente rigoroso.
+        Sua tarefa é comparar a "FOTO GABARITO (REFERÊNCIA)" com a "FOTO DO COMPETIDOR".
+
+        CRITÉRIOS OBRIGATÓRIOS A VERIFICAR:
+        1. Quantidade de Pessoas exigidas na foto: ${regra?.qtd_competidores || 1}
+        2. Carro da Equipe é obrigatório estar visível na foto: ${regra?.exigir_carro ? 'SIM' : 'NÃO'}
+        3. Instrução / Pegadinha Especial: ${regra?.pegadinhas || 'Nenhuma'}
+
+        INSTRUÇÕES DE DECISÃO:
+        - Compare os cenários, elementos, poses e o cumprimento exato dos critérios.
+        - Se a foto cumprir os critérios do gabarito, APROVE concedendo exatamente ${pontosMax} pontos.
+        - Se a foto descumprir os critérios ou não tiver relação com o gabarito, REPROVE concedendo 0 pontos.
+
+        Responda ESTRITAMENTE em formato JSON sem marcação markdown no seguinte formato:
+        {
+          "aprovado": true,
+          "pontos": ${pontosMax},
+          "justificativa": "Resumo da decisão em uma frase simples"
+        }
+      `;
+
+      try {
+        const partGabarito = base64ToGenerativePart(fotoGabaritoBase64);
+        const partCompetidor = base64ToGenerativePart(fotoCompetidorBase64);
+
+        const result = await model.generateContent([prompt, partGabarito, partCompetidor]);
+        const text = result.response.text().trim().replace(/```json/g, '').replace(/```/g, '');
+        return JSON.parse(text);
+      } catch (e) {
+        console.error("Erro na resposta da IA:", e);
+        return { aprovado: false, pontos: 0, justificativa: "Erro ao processar imagem via IA" };
+      }
+    }
+
+    // PROCESSAMENTO EM LOTE DE TODOS OS CARROS PENDENTES
+    document.getElementById('btn-iniciar-ia').addEventListener('click', async () => {
+      const pendentes = enviosGlobais.filter(e => (e.status_avaliacao || 'pendente') === 'pendente');
+
+      if (pendentes.length === 0) {
+        alert("Não há submissões pendentes de avaliação!");
+        return;
+      }
+
+      const btn = document.getElementById('btn-iniciar-ia');
+      const progressBox = document.getElementById('progress-box');
+      const progressText = document.getElementById('progress-text');
+      const progressPercent = document.getElementById('progress-percent');
+      const progressBar = document.getElementById('progress-bar');
+
+      btn.disabled = true;
+      btn.classList.add('opacity-50');
+      progressBox.classList.remove('hidden');
+
+      for (let i = 0; i < pendentes.length; i++) {
+        const envio = pendentes[i];
+        const statusCell = document.getElementById(`status-ia-${envio.id}`);
+        if (statusCell) statusCell.textContent = '🤖 Analisando com IA...';
+
+        progressText.textContent = `Avaliando Carro #${envio.numero_carro} (${i + 1} de ${pendentes.length})...`;
+        const pct = Math.round(((i) / pendentes.length) * 100);
+        progressPercent.textContent = `${pct}%`;
+        progressBar.style.width = `${pct}%`;
+
+        // Busca dados da prova cadastrada
+        let tarefasGabarito = [];
+        if (envio.prova_id) {
+          try {
+            const provaSnap = await getDoc(doc(db, "provas", envio.prova_id));
+            if (provaSnap.exists()) tarefasGabarito = provaSnap.data().tarefas || [];
+          } catch (e) {}
+        }
+
+        let somaTotal = 0;
+        const respostasAtualizadas = [];
+
+        for (let idx = 0; idx < (envio.respostas || []).length; idx++) {
+          const resp = envio.respostas[idx];
+          const numT = resp.ordem || (idx + 1);
+          const tarefaOriginal = tarefasGabarito.find(t => (t.ordem || 0) === numT) || tarefasGabarito[idx];
+          const pontosMax = tarefaOriginal?.pontos ?? resp.regras?.pontos ?? 100;
+
+          const analiseIA = await analisarFotoComIA(
+            resp.foto_gabarito_url,
+            resp.foto_competidor_url,
+            resp.regras || tarefaOriginal,
+            pontosMax
+          );
+
+          const ptsConcedidos = analiseIA.aprovado ? pontosMax : 0;
+          somaTotal += ptsConcedidos;
+
+          respostasAtualizadas.push({
+            ...resp,
+            pontos_concedidos: ptsConcedidos,
+            analise_ia: analiseIA
+          });
+        }
+
+        // Salva resultado no Firestore
+        await updateDoc(doc(db, "envios_competidores", envio.id), {
+          respostas: respostasAtualizadas,
+          pontuacao_total: somaTotal,
+          status_avaliacao: "avaliado",
+          avaliado_por_ia: true
+        });
+
+        if (statusCell) statusCell.textContent = '✅ Concluído';
+      }
+
+      progressPercent.textContent = `100%`;
+      progressBar.style.width = `100%`;
+      progressText.textContent = "✅ Todas as submissões foram avaliadas pela IA!";
+
+      btn.disabled = false;
+      btn.classList.remove('opacity-50');
+
+      setTimeout(async () => {
+        await carregarEnvios();
+      }, 1000);
+    });
+
+    // Exportar PDF
+    document.getElementById('btn-exportar-pdf').addEventListener('click', () => {
+      if (enviosGlobais.length === 0) return alert("Sem dados!");
+      const { jsPDF } = window.jspdf;
+      const docPdf = new jsPDF();
+      docPdf.setFontSize(16);
+      docPdf.text("Relatório Gincana - Avaliação IA", 14, 20);
+      const ranking = [...enviosGlobais].sort((a, b) => (b.pontuacao_total || 0) - (a.pontuacao_total || 0));
+      const body = ranking.map((item, idx) => [`#${idx + 1}`, `Carro #${item.numero_carro}`, item.nome_prova || "Gincana", item.status_avaliacao === 'avaliado' ? 'Avaliado (IA)' : 'Pendente', `${item.pontuacao_total || 0} pts`]);
+      docPdf.autoTable({ startY: 30, head: [['Posição', 'Equipe', 'Prova', 'Status', 'Pontuação']], body, theme: 'striped', headStyles: { fillColor: [79, 70, 229] } });
+      docPdf.save('Resultado_Gincana_IA.pdf');
+    });
+
+    carregarEnvios();
+  </script>
+</body>
+</html>
