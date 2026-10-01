@@ -18,7 +18,7 @@
       <span class="text-2xl">🤖⚖️</span>
       <div>
         <h1 class="text-lg font-bold text-white">Painel Piloto Automático (IA + Juiz)</h1>
-        <p class="text-xs text-slate-400">A IA sugere a aprovação e a justificativa, o juiz humano confirma.</p>
+        <p class="text-xs text-slate-400">A IA sugere a decisão e a justificativa; o juiz humano confira e ajusta se necessário.</p>
       </div>
     </div>
     
@@ -34,7 +34,7 @@
 
   <main class="max-w-7xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
 
-    <!-- COLUNA ESQUERDA: LISTA DE SUBMISSÕES / CARROS -->
+    <!-- COLUNA ESQUERDA: LISTA DE CARROS -->
     <aside class="lg:col-span-1 bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-4 h-fit">
       <div class="flex justify-between items-center pb-3 border-b border-slate-700">
         <h2 class="font-bold text-slate-200 flex items-center gap-2">
@@ -53,13 +53,13 @@
       </div>
     </aside>
 
-    <!-- COLUNA DIREITA: COMPARAÇÃO COM SUGESTÃO DA IA -->
+    <!-- COLUNA DIREITA: COMPARAÇÃO E DECISÃO -->
     <section class="lg:col-span-3 bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-6">
       
       <div id="empty-state" class="text-center py-20 space-y-3">
         <span class="text-5xl block">👈</span>
-        <h3 class="text-lg font-bold text-slate-300">Selecione um Carro na lista</h3>
-        <p class="text-sm text-slate-400 max-w-md mx-auto">A IA analisará as imagens e preencherá as decisões automaticamente para sua conferência.</p>
+        <h3 class="text-lg font-bold text-slate-300">Selecione um Carro na lista ao lado</h3>
+        <p class="text-sm text-slate-400 max-w-md mx-auto">A IA analisará as imagens e sugerirá a pontuação e justificativa para sua conferência.</p>
       </div>
 
       <div id="eval-content" class="hidden space-y-8">
@@ -72,21 +72,21 @@
           </div>
 
           <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 text-right">
-            <span class="text-xs text-slate-400 block">Pontuação Estimada</span>
+            <span class="text-xs text-slate-400 block">Pontuação Total</span>
             <span id="eval-placar-total" class="text-2xl font-bold text-emerald-400">0 pts</span>
           </div>
         </div>
 
         <div id="container-comparacao" class="space-y-8"></div>
 
-        <!-- BOTÃO DE SALVAMENTO AO FIM -->
+        <!-- BOTÃO DE SALVAMENTO -->
         <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 flex justify-between items-center gap-4">
           <div>
             <span class="text-xs text-slate-400 block">Total Acumulado:</span>
             <span id="eval-placar-rodape" class="text-2xl font-bold text-emerald-400">0 pts</span>
           </div>
           <button id="btn-finalizar-carro" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base px-8 py-3 rounded-lg shadow-lg transition flex items-center gap-2">
-            <span>💾 Confirmar e Salvar Avaliação</span>
+            <span>💾 Confirmar e Salvar Avaliação Final</span>
           </button>
         </div>
 
@@ -96,7 +96,7 @@
 
   </main>
 
-  <!-- Módulo Firebase JS & Gemini SDK -->
+  <!-- Módulo Firebase JS & Google Gen AI SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { initializeFirestore, collection, getDocs, doc, getDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -113,12 +113,16 @@
 
     const app = initializeApp(firebaseConfig);
     const db = initializeFirestore(app, { experimentalForceLongPolling: true });
-    const genAI = new GoogleGenerativeAI(firebaseConfig.apiKey);
+
+    // COLE A SUA CHAVE DO GOOGLE AI STUDIO AQUI
+    const GEMINI_API_KEY = "SUA_CHAVE_API_AQUI";
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
     let enviosGlobais = [];
     let envioAtual = null;
     let notasLocais = {};
     let decisoesTomadas = {};
+    let justificativasLocais = {};
     let filtroStatus = "pendente";
 
     document.getElementById('filter-pendente').addEventListener('click', (e) => {
@@ -197,12 +201,24 @@
     }
 
     function base64ToGenerativePart(base64Data) {
-      const matches = base64Data.match(/^data:(.+);base64,(.+)$/);
-      if (!matches) return { inlineData: { data: base64Data, mimeType: "image/jpeg" } };
-      return { inlineData: { data: matches[2], mimeType: matches[1] } };
+      if (!base64Data) return null;
+      let mimeType = "image/jpeg";
+      let data = base64Data;
+
+      if (base64Data.includes(";base64,")) {
+        const parts = base64Data.split(";base64,");
+        mimeType = parts[0].replace("data:", "");
+        data = parts[1];
+      }
+
+      return { inlineData: { data: data, mimeType: mimeType } };
     }
 
     async function consultarIA(fotoGabaritoBase64, fotoCompetidorBase64, regra, pontosMax) {
+      if (!GEMINI_API_KEY || GEMINI_API_KEY === "SUA_CHAVE_API_AQUI") {
+        return { aprovado: false, pontos: 0, justificativa: "Configure a chave de API do Gemini no código." };
+      }
+
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const prompt = `
@@ -212,9 +228,9 @@
         - Exige carro: ${regra?.exigir_carro ? 'SIM' : 'NÃO'}
         - Pegadinha: ${regra?.pegadinhas || 'Nenhuma'}
 
-        Aprove concedendo ${pontosMax} pontos se cumprir os critérios. Caso contrário, dê 0.
-        Responda ESTRITAMENTE em JSON:
-        {"aprovado": true, "pontos": ${pontosMax}, "justificativa": "frase explicativa"}
+        Aprove concedendo ${pontosMax} pontos se cumprir os critérios. Caso contrário, dê 0 e explique o motivo.
+        Responda ESTRITAMENTE em JSON puro:
+        {"aprovado": true, "pontos": ${pontosMax}, "justificativa": "Explicação detalhada"}
       `;
 
       try {
@@ -224,7 +240,7 @@
         const text = res.response.text().trim().replace(/```json/g, '').replace(/```/g, '');
         return JSON.parse(text);
       } catch (e) {
-        return { aprovado: false, pontos: 0, justificativa: "Erro ao consultar IA" };
+        return { aprovado: false, pontos: 0, justificativa: "Erro ao consultar IA: " + e.message };
       }
     }
 
@@ -232,6 +248,7 @@
       envioAtual = envio;
       notasLocais = {};
       decisoesTomadas = {};
+      justificativasLocais = {};
 
       document.getElementById('empty-state').classList.add('hidden');
       document.getElementById('eval-content').classList.remove('hidden');
@@ -284,7 +301,7 @@
               <span class="animate-pulse">🤖</span>
               <span>Consultando Gemini IA...</span>
             </div>
-            <p class="text-slate-400 italic">Analisando imagem do competidor contra o gabarito...</p>
+            <p class="text-slate-400 italic">Analisando imagem contra o gabarito...</p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -299,7 +316,13 @@
             </div>
           </div>
 
-          <!-- DECISÃO E CONFIRMAÇÃO DO JUIZ -->
+          <!-- CAMPO DE JUSTIFICATIVA -->
+          <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 space-y-2">
+            <label class="block text-xs font-bold text-slate-300 uppercase">📝 Justificativa da Avaliação:</label>
+            <textarea id="justificativa-${numTarefa}" rows="2" placeholder="Insira o motivo da aprovação ou reprovação..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+          </div>
+
+          <!-- DECISÃO E PONTUAÇÃO -->
           <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 flex flex-wrap justify-between items-center gap-4">
             <div class="flex items-center gap-3">
               <span class="text-xs font-bold text-slate-300">Sua Decisão:</span>
@@ -320,16 +343,20 @@
 
         container.appendChild(card);
 
-        // Se o item já foi salvo no banco anteriormente
+        // Event listener para salvar o texto da justificativa ao digitar
+        document.getElementById(`justificativa-${numTarefa}`).addEventListener('input', (e) => {
+          justificativasLocais[numTarefa] = e.target.value;
+        });
+
         if (item.pontos_concedidos !== undefined) {
-          const boxIA = document.getElementById(`box-ia-${numTarefa}`);
-          boxIA.innerHTML = `
+          document.getElementById(`box-ia-${numTarefa}`).innerHTML = `
             <div class="font-bold text-emerald-400">✅ Avaliação Anterior Gravada</div>
-            <p class="text-slate-300">${item.analise_ia?.justificativa || 'Avaliado previamente.'}</p>
+            <p class="text-slate-300">${item.justificativa || item.analise_ia?.justificativa || 'Avaliado previamente.'}</p>
           `;
+          document.getElementById(`justificativa-${numTarefa}`).value = item.justificativa || "";
+          justificativasLocais[numTarefa] = item.justificativa || "";
           atribuirDecisao(numTarefa, item.pontos_concedidos);
         } else {
-          // Consulta a IA em tempo real para dar a sugestão ao Juiz
           consultarIA(item.foto_gabarito_url, item.foto_competidor_url, item.regras || tarefaOriginal, pontosOficiais)
             .then(resultado => {
               const boxIA = document.getElementById(`box-ia-${numTarefa}`);
@@ -344,7 +371,10 @@
                 <p class="text-slate-300 mt-1">${resultado.justificativa}</p>
               `;
 
-              // Aplica automaticamente a sugestão da IA nos botões do Juiz
+              // Preenche a justificativa sugerida pela IA
+              document.getElementById(`justificativa-${numTarefa}`).value = resultado.justificativa;
+              justificativasLocais[numTarefa] = resultado.justificativa;
+
               atribuirDecisao(numTarefa, resultado.pontos);
             });
         }
@@ -384,7 +414,6 @@
       document.getElementById('eval-placar-rodape').textContent = `${total} pts`;
     }
 
-    // Gravar confirmação final do juiz
     document.getElementById('btn-finalizar-carro').addEventListener('click', async () => {
       if (!envioAtual) return;
 
@@ -405,10 +434,12 @@
         const respostasAtualizadas = (envioAtual.respostas || []).map((resp, idx) => {
           const numT = resp.ordem || (idx + 1);
           const ptsConcedidos = notasLocais[numT] || 0;
+          const justificativaTexto = justificativasLocais[numT] || "";
           somaTotal += ptsConcedidos;
           return {
             ...resp,
-            pontos_concedidos: ptsConcedidos
+            pontos_concedidos: ptsConcedidos,
+            justificativa: justificativaTexto
           };
         });
 
@@ -420,7 +451,7 @@
 
         alert(`Avaliação do Carro #${envioAtual.numero_carro} gravada com sucesso!\nPontuação Final: ${somaTotal} pontos.`);
         btn.disabled = false;
-        btn.innerHTML = '<span>💾 Confirmar e Salvar Avaliação</span>';
+        btn.innerHTML = '<span>💾 Confirmar e Salvar Avaliação Final</span>';
         await carregarEnvios();
       } catch (err) {
         alert("Erro ao salvar: " + err.message);
