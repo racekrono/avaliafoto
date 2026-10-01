@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Juiz - Painel de Avaliação da Gincana</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl">⚖️</span>
+      <div>
+        <h1 class="text-lg font-bold text-white">Painel do Juiz - Avaliação de Fotos</h1>
+        <p class="text-xs text-slate-400">Conferência de Gabaritos e Pontuação da Gincana</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-xs bg-indigo-900 text-indigo-200 px-3 py-1 rounded-full border border-indigo-700">Projeto: teste-2994e</span>
+      <button id="btn-atualizar" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-1.5 rounded-lg border border-slate-600 transition flex items-center gap-1">
+        <span>🔄</span> Atualizar Lista
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+    <!-- COLUNA ESQUERDA: LISTA DE SUBMISSÕES / CARROS -->
+    <aside class="lg:col-span-1 bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-4 h-fit">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+        <h2 class="font-bold text-slate-200 flex items-center gap-2">
+          <span>🚗</span> Equipes / Carros
+        </h2>
+        <span id="badge-total-envios" class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">0</span>
+      </div>
+
+      <!-- Filtro por status -->
+      <div class="flex gap-1 p-1 bg-slate-900 rounded-lg text-xs">
+        <button id="filter-pendente" class="flex-1 py-1.5 rounded-md bg-indigo-600 font-semibold text-white transition">Pendentes</button>
+        <button id="filter-avaliado" class="flex-1 py-1.5 rounded-md hover:bg-slate-800 text-slate-400 transition">Avaliados</button>
+      </div>
+
+      <!-- Lista de Carros/Equipes -->
+      <div id="lista-envios" class="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
+        <p class="text-xs text-slate-400 text-center py-6">Carregando submissões...</p>
+      </div>
+    </aside>
+
+    <!-- COLUNA DIREITA: ÁREA DE COMPARAÇÃO E AVALIAÇÃO LADO A LADO -->
+    <section class="lg:col-span-3 bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-6">
+      
+      <!-- Estado Inicial (Nada Selecionado) -->
+      <div id="empty-state" class="text-center py-20 space-y-3">
+        <span class="text-5xl block">👈</span>
+        <h3 class="text-lg font-bold text-slate-300">Selecione um Carro na lista ao lado</h3>
+        <p class="text-sm text-slate-400 max-w-md mx-auto">Escolha uma equipe cadastrada para comparar as fotos enviadas com os gabaritos e atribuir a pontuação.</p>
+      </div>
+
+      <!-- Conteúdo da Avaliação do Carro Selecionado -->
+      <div id="eval-content" class="hidden space-y-8">
+        
+        <!-- Header do Carro Selecionado -->
+        <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 flex flex-wrap justify-between items-center gap-4">
+          <div>
+            <span class="text-xs font-bold text-indigo-400 uppercase tracking-wider" id="eval-nome-prova">---</span>
+            <h2 id="eval-carro-titulo" class="text-2xl font-black text-white">Carro #--</h2>
+            <p id="eval-data" class="text-xs text-slate-400">Enviado em: --</p>
+          </div>
+
+          <div class="flex items-center gap-4 bg-slate-800 p-3 rounded-lg border border-slate-700">
+            <div class="text-right">
+              <span class="text-xs text-slate-400 block">Pontuação Atual</span>
+              <span id="eval-placar-total" class="text-2xl font-bold text-emerald-400">0 pts</span>
+            </div>
+            <button id="btn-finalizar-carro" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm px-5 py-2.5 rounded-lg shadow-md transition flex items-center gap-2">
+              <span>💾 Salvar Avaliação Final</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Contêiner dinâmico para as fotos do carro -->
+        <div id="container-comparacao" class="space-y-8"></div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Módulo Firebase JS (v10) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { initializeFirestore, collection, getDocs, doc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
+      authDomain: "teste-2994e.firebaseapp.com",
+      projectId: "teste-2994e",
+      storageBucket: "teste-2994e.firebasestorage.app",
+      messagingSenderId: "614899420753",
+      appId: "1:614899420753:web:5fc23c3d0e8facdf593270"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = initializeFirestore(app, {
+      experimentalForceLongPolling: true
+    });
+
+    let enviosGlobais = [];
+    let envioAtual = null;
+    let notasLocais = {}; // guarda as notas digitadas/clicadas por tarefa
+    let filtroStatus = "pendente";
+
+    // Filtros
+    document.getElementById('filter-pendente').addEventListener('click', (e) => {
+      filtroStatus = "pendente";
+      e.target.className = "flex-1 py-1.5 rounded-md bg-indigo-600 font-semibold text-white transition";
+      document.getElementById('filter-avaliado').className = "flex-1 py-1.5 rounded-md hover:bg-slate-800 text-slate-400 transition";
+      renderizarListaEnvios();
+    });
+
+    document.getElementById('filter-avaliado').addEventListener('click', (e) => {
+      filtroStatus = "avaliado";
+      e.target.className = "flex-1 py-1.5 rounded-md bg-indigo-600 font-semibold text-white transition";
+      document.getElementById('filter-pendente').className = "flex-1 py-1.5 rounded-md hover:bg-slate-800 text-slate-400 transition";
+      renderizarListaEnvios();
+    });
+
+    document.getElementById('btn-atualizar').addEventListener('click', carregarEnvios);
+
+    // Buscar envios dos competidores do Firestore
+    async function carregarEnvios() {
+      const listaDiv = document.getElementById('lista-envios');
+      listaDiv.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Atualizando submissões...</p>';
+
+      try {
+        const q = query(collection(db, "envios_competidores"), orderBy("enviado_em", "desc"));
+        const snapshot = await getDocs(q);
+
+        enviosGlobais = [];
+        snapshot.forEach((docSnap) => {
+          enviosGlobais.push({ id: docSnap.id, ...docSnap.data() });
+        });
+
+        document.getElementById('badge-total-envios').textContent = enviosGlobais.length;
+        renderizarListaEnvios();
+      } catch (err) {
+        console.error("Erro ao carregar envios:", err);
+        listaDiv.innerHTML = '<p class="text-xs text-rose-400 text-center py-6">Erro ao carregar dados.</p>';
+      }
+    }
+
+    // Renderizar a lista de carros no menu esquerdo
+    function renderizarListaEnvios() {
+      const listaDiv = document.getElementById('lista-envios');
+      listaDiv.innerHTML = '';
+
+      const filtrados = enviosGlobais.filter(e => (e.status_avaliacao || "pendente") === filtroStatus);
+
+      if (filtrados.length === 0) {
+        listaDiv.innerHTML = `<p class="text-xs text-slate-500 text-center py-6">Nenhum envio com status <strong>"${filtroStatus}"</strong>.</p>`;
+        return;
+      }
+
+      filtrados.forEach((envio) => {
+        const item = document.createElement('div');
+        const isSelected = envioAtual && envioAtual.id === envio.id;
+
+        item.className = `p-3 rounded-xl border transition cursor-pointer flex justify-between items-center ${
+          isSelected 
+            ? 'bg-indigo-900/50 border-indigo-500 text-white' 
+            : 'bg-slate-900/60 border-slate-700/80 hover:border-slate-500 text-slate-300'
+        }`;
+
+        const dataEnvio = envio.enviado_em ? new Date(envio.enviado_em.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+
+        item.innerHTML = `
+          <div>
+            <div class="font-bold text-sm text-white">Carro #${envio.numero_carro}</div>
+            <div class="text-xs text-slate-400 truncate max-w-[130px]">${envio.nome_prova || 'Prova'}</div>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700 block mb-1">${dataEnvio}</span>
+            <span class="text-xs font-semibold ${envio.pontuacao_total !== undefined ? 'text-emerald-400' : 'text-amber-400'}">
+              ${envio.pontuacao_total !== undefined ? envio.pontuacao_total + ' pts' : 'Pendente'}
+            </span>
+          </div>
+        `;
+
+        item.addEventListener('click', () => selecionarCarroParaAvaliar(envio));
+        listaDiv.appendChild(item);
+      });
+    }
+
+    // Abrir painel de comparação do carro escolhido
+    function selecionarCarroParaAvaliar(envio) {
+      envioAtual = envio;
+      notasLocais = {}; // reset
+
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('eval-content').classList.remove('hidden');
+
+      document.getElementById('eval-nome-prova').textContent = envio.nome_prova || 'Etapa Gincana';
+      document.getElementById('eval-carro-titulo').textContent = `Carro / Equipe #${envio.numero_carro}`;
+      
+      const dataStr = envio.enviado_em ? new Date(envio.enviado_em.seconds * 1000).toLocaleString() : 'Recentemente';
+      document.getElementById('eval-data').textContent = `Enviado em: ${dataStr}`;
+
+      renderizarComparativo(envio.respostas || []);
+      renderizarListaEnvios(); // atualiza borda de seleção
+    }
+
+    // Renderiza cada tarefa com o gabarito vs foto do competidor lado a lado
+    function renderizarComparativo(respostas) {
+      const container = document.getElementById('container-comparacao');
+      container.innerHTML = '';
+
+      let placarTotal = 0;
+
+      respostas.forEach((item, index) => {
+        const numTarefa = item.ordem || (index + 1);
+        const pontosMax = item.regras?.pontos || 100;
+
+        // Se já foi avaliado anteriormente, pega a nota dada. Se não, inicia com nota 0 ou nota máxima.
+        const notaInicial = item.pontos_concedidos !== undefined ? item.pontos_concedidos : 0;
+        notasLocais[numTarefa] = notaInicial;
+        placarTotal += notaInicial;
+
+        const card = document.createElement('div');
+        card.className = "bg-slate-900 rounded-xl p-5 border border-slate-700 space-y-4";
+
+        card.innerHTML = `
+          <!-- Header da Tarefa -->
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">
+            <h3 class="font-bold text-white text-base flex items-center gap-2">
+              <span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">${numTarefa}</span>
+              Tarefa #${numTarefa}
+            </h3>
+            <span class="text-xs bg-slate-800 text-indigo-300 border border-indigo-800/60 px-3 py-1 rounded-full font-semibold">
+              Valor Máximo: ${pontosMax} PONTOS
+            </span>
+          </div>
+
+          <!-- REGRAS DA PEGADINHA (Visíveis apenas para o Juiz) -->
+          <div class="bg-indigo-950/40 border border-indigo-800/40 rounded-lg p-3 text-xs text-indigo-200 flex flex-wrap gap-4 items-center">
+            <span class="font-bold text-indigo-400">🔍 Critérios do Gabarito:</span>
+            <span>👥 <strong>Pessoas:</strong> ${item.regras?.qtd_competidores || 1}</span>
+            <span>🚗 <strong>Exige Carro:</strong> ${item.regras?.exigir_carro ? 'SIM' : 'NÃO'}</span>
+            ${item.regras?.pegadinhas ? `<span class="text-amber-300">💡 <strong>Pegadinha:</strong> ${item.regras.pegadinhas}</span>` : ''}
+          </div>
+
+          <!-- FOTOS LADO A LADO -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <!-- LADO ESQUERDO: GABARITO (ADMIN) -->
+            <div class="bg-slate-800/80 p-3 rounded-lg border border-slate-700">
+              <span class="text-xs font-bold text-slate-400 block mb-2 uppercase">📌 Gabarito Oficial (Referência)</span>
+              <img src="${item.foto_gabarito_url}" class="w-full h-60 object-cover rounded-md border border-slate-600 bg-black cursor-pointer hover:opacity-95 transition" onclick="window.open('${item.foto_gabarito_url}')" title="Clique para ampliar">
+            </div>
+
+            <!-- LADO DIREITO: FOTO DO COMPETIDOR -->
+            <div class="bg-slate-800/80 p-3 rounded-lg border border-slate-700">
+              <span class="text-xs font-bold text-emerald-400 block mb-2 uppercase">📸 Foto Enviada pelo Competidor</span>
+              <img src="${item.foto_competidor_url}" class="w-full h-60 object-cover rounded-md border border-slate-600 bg-black cursor-pointer hover:opacity-95 transition" onclick="window.open('${item.foto_competidor_url}')" title="Clique para ampliar">
+            </div>
+
+          </div>
+
+          <!-- CONTROLES DE PONTUAÇÃO DO JUIZ -->
+          <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-slate-300">Ação Rápida:</span>
+              <button type="button" onclick="atribuirNota(${numTarefa}, ${pontosMax})" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded transition flex items-center gap-1">
+                <span>✅ Aprovar (${pontosMax} pts)</span>
+              </button>
+              <button type="button" onclick="atribuirNota(${numTarefa}, 0)" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold px-3 py-2 rounded transition flex items-center gap-1">
+                <span>❌ Reprovar (0 pts)</span>
+              </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-slate-300 font-semibold">Nota Concedida:</label>
+              <input type="number" id="input-nota-${numTarefa}" value="${notaInicial}" min="0" max="${pontosMax}" onchange="atualizarNotaManual(${numTarefa}, this.value, ${pontosMax})" class="w-20 bg-slate-900 border border-slate-600 text-center font-bold text-emerald-400 rounded py-1.5 focus:ring-2 focus:ring-indigo-500 outline-none">
+              <span class="text-xs text-slate-400">/ ${pontosMax}</span>
+            </div>
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
+
+      atualizarPlacarTotal();
+    }
+
+    // Funções globais de atribuição de nota
+    window.atribuirNota = function(numTarefa, pontos) {
+      notasLocais[numTarefa] = pontos;
+      document.getElementById(`input-nota-${numTarefa}`).value = pontos;
+      atualizarPlacarTotal();
+    };
+
+    window.atualizarNotaManual = function(numTarefa, valor, max) {
+      let pts = parseInt(valor) || 0;
+      if (pts < 0) pts = 0;
+      if (pts > max) pts = max;
+      notasLocais[numTarefa] = pts;
+      document.getElementById(`input-nota-${numTarefa}`).value = pts;
+      atualizarPlacarTotal();
+    };
+
+    function atualizarPlacarTotal() {
+      let total = 0;
+      Object.values(notasLocais).forEach(pts => total += pts);
+      document.getElementById('eval-placar-total').textContent = `${total} pts`;
+    }
+
+    // Gravar a pontuação final no Firestore
+    document.getElementById('btn-finalizar-carro').addEventListener('click', async () => {
+      if (!envioAtual) return;
+
+      const btn = document.getElementById('btn-finalizar-carro');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳ Salvando...</span>';
+
+      try {
+        let somaTotal = 0;
+        const respostasAtualizadas = (envioAtual.respostas || []).map((resp, idx) => {
+          const numT = resp.ordem || (idx + 1);
+          const ptsConcedidos = notasLocais[numT] || 0;
+          somaTotal += ptsConcedidos;
+          return {
+            ...resp,
+            pontos_concedidos: ptsConcedidos
+          };
+        });
+
+        const docRef = doc(db, "envios_competidores", envioAtual.id);
+        await updateDoc(docRef, {
+          respostas: respostasAtualizadas,
+          pontuacao_total: somaTotal,
+          status_avaliacao: "avaliado"
+        });
+
+        alert(`Avaliação do Carro #${envioAtual.numero_carro} salva com sucesso!\nPontuação Final: ${somaTotal} pontos.`);
+
+        btn.disabled = false;
+        btn.innerHTML = '<span>💾 Salvar Avaliação Final</span>';
+
+        await carregarEnvios();
+
+      } catch (err) {
+        console.error("Erro ao salvar avaliação:", err);
+        alert("Erro ao salvar avaliação: " + err.message);
+        btn.disabled = false;
+        btn.innerHTML = '<span>💾 Salvar Avaliação Final</span>';
+      }
+    });
+
+    // Iniciar carregamento das submissões ao abrir a tela
+    carregarEnvios();
+  </script>
+</body>
+</html>
