@@ -1,330 +1,693 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Avaliação Automática por IA - Rally / Gincana</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Firebase SDKs Compat (Mesmo padrão do seu avaliacao.html) -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Juiz - Painel de Avaliação da Gincana</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Bibliotecas para Geração de PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <!-- Google Generative AI SDK (Gemini) -->
+  <script type="importmap">
+    {
+      "imports": {
+        "@google/genai": "https://esm.run/@google/genai"
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen">
 
-    <!-- SDK Oficial do Gemini para JavaScript (Navegador) -->
-    <script type="importmap">
-      {
-        "imports": {
-          "@google/genai": "https://esm.run/@google/genai"
+  <!-- Header -->
+  <header class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex flex-wrap justify-between items-center sticky top-0 z-50 gap-4">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl">⚖️</span>
+      <div>
+        <h1 class="text-lg font-bold text-white">Painel do Juiz - Avaliação de Fotos</h1>
+        <p class="text-xs text-slate-400">Conferência de Gabaritos, IA e Pontuação da Gincana</p>
+      </div>
+    </div>
+    
+    <!-- Botões de Ação Global e Alternância de Abas -->
+    <div class="flex items-center gap-2 flex-wrap">
+      <!-- Abas de Navegação -->
+      <div class="flex bg-slate-900 p-1 rounded-lg border border-slate-700 mr-2">
+        <button id="tab-btn-manual" class="px-3 py-1.5 rounded-md bg-indigo-600 text-white font-semibold text-xs transition">Manual</button>
+        <button id="tab-btn-auto" class="px-3 py-1.5 rounded-md text-slate-400 hover:text-white text-xs transition">🤖 Automática (IA)</button>
+      </div>
+
+      <button id="btn-exportar-pdf" class="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-2 rounded-lg border border-emerald-600 transition flex items-center gap-1.5 shadow-sm">
+        <span>📄 Exportar (PDF)</span>
+      </button>
+
+      <button id="btn-atualizar" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded-lg border border-slate-600 transition flex items-center gap-1">
+        <span>🔄 Atualizar</span>
+      </button>
+
+      <button id="btn-zerar-banco" class="bg-rose-900/80 hover:bg-rose-700 text-rose-200 hover:text-white border border-rose-700 text-xs font-semibold px-3 py-2 rounded-lg transition flex items-center gap-1">
+        <span>🗑️ Zerar Banco</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- CONTEÚDO DA AVALIAÇÃO MANUAL -->
+  <main id="view-manual" class="max-w-7xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+    <!-- COLUNA ESQUERDA: LISTA DE SUBMISSÕES / CARROS -->
+    <aside class="lg:col-span-1 bg-slate-800 rounded-xl border border-slate-700 p-4 space-y-4 h-fit">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-700">
+        <h2 class="font-bold text-slate-200 flex items-center gap-2">
+          <span>🚗</span> Equipes / Carros
+        </h2>
+        <span id="badge-total-envios" class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">0</span>
+      </div>
+
+      <!-- Filtro por status -->
+      <div class="flex gap-1 p-1 bg-slate-900 rounded-lg text-xs">
+        <button id="filter-pendente" class="flex-1 py-1.5 rounded-md bg-indigo-600 font-semibold text-white transition">Pendentes</button>
+        <button id="filter-avaliado" class="flex-1 py-1.5 rounded-md hover:bg-slate-800 text-slate-400 transition">Avaliados</button>
+      </div>
+
+      <!-- Lista de Carros/Equipes -->
+      <div id="lista-envios" class="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
+        <p class="text-xs text-slate-400 text-center py-6">Carregando submissões...</p>
+      </div>
+    </aside>
+
+    <!-- COLUNA DIREITA: ÁREA DE COMPARAÇÃO E AVALIAÇÃO LADO A LADO -->
+    <section class="lg:col-span-3 bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-6">
+      
+      <!-- Estado Inicial -->
+      <div id="empty-state" class="text-center py-20 space-y-3">
+        <span class="text-5xl block">👈</span>
+        <h3 class="text-lg font-bold text-slate-300">Selecione um Carro na lista ao lado</h3>
+        <p class="text-sm text-slate-400 max-w-md mx-auto">Escolha uma equipe cadastrada para comparar as fotos enviadas com os gabaritos e atribuir a pontuação.</p>
+      </div>
+
+      <!-- Conteúdo da Avaliação -->
+      <div id="eval-content" class="hidden space-y-8">
+        
+        <!-- Header do Carro Selecionado -->
+        <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 flex flex-wrap justify-between items-center gap-4">
+          <div>
+            <span class="text-xs font-bold text-indigo-400 uppercase tracking-wider" id="eval-nome-prova">---</span>
+            <h2 id="eval-carro-titulo" class="text-2xl font-black text-white">Carro #--</h2>
+            <p id="eval-data" class="text-xs text-slate-400">Enviado em: --</p>
+          </div>
+
+          <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 text-right">
+            <span class="text-xs text-slate-400 block">Pontuação Atual</span>
+            <span id="eval-placar-total" class="text-2xl font-bold text-emerald-400">0 pts</span>
+          </div>
+        </div>
+
+        <!-- Contêiner dinâmico para as fotos do carro -->
+        <div id="container-comparacao" class="space-y-8"></div>
+
+        <!-- BOTÃO DE SALVAMENTO AO FIM DA PÁGINA -->
+        <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 flex flex-wrap justify-between items-center gap-4">
+          <div>
+            <span class="text-xs text-slate-400 block">Total Acumulado:</span>
+            <span id="eval-placar-rodape" class="text-2xl font-bold text-emerald-400">0 pts</span>
+          </div>
+          <button id="btn-finalizar-carro" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base px-8 py-3 rounded-lg shadow-lg transition flex items-center gap-2">
+            <span>💾 Salvar Avaliação Final</span>
+          </button>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- CONTEÚDO DA AVALIAÇÃO AUTOMÁTICA (IA) -->
+  <main id="view-auto" class="max-w-5xl mx-auto p-4 md:p-6 hidden space-y-6">
+    <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-6">
+      
+      <div class="flex items-center justify-between pb-4 border-b border-slate-700">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2"><span>🤖</span> Painel de Avaliação Automática por IA</h2>
+          <p class="text-xs text-slate-400">Selecione o competidor e a tarefa para o Gemini analisar a compatibilidade da foto.</p>
+        </div>
+      </div>
+
+      <!-- Formulário de Seleção -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-2">Selecione o Competidor / Carro:</label>
+          <select id="auto-select-competidor" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-indigo-500">
+            <option value="">Carregando competidores...</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-300 mb-2">Selecione a Tarefa / PC:</label>
+          <select id="auto-select-tarefa" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-indigo-500" disabled>
+            <option value="">Selecione um competidor primeiro</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Botão de Análise -->
+      <div class="flex justify-end pt-2">
+        <button id="btn-analisar-ia" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm px-6 py-3 rounded-lg transition flex items-center gap-2 shadow-lg disabled:opacity-50" disabled>
+          <span>✨ Analisar com IA (Gemini)</span>
+        </button>
+      </div>
+
+      <!-- Área de Resultado da IA -->
+      <div id="auto-resultado-container" class="hidden space-y-6 pt-4 border-t border-slate-700">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+            <span class="text-xs font-bold text-slate-400 block mb-2">📌 Gabarito Oficial</span>
+            <img id="auto-img-gabarito" src="" class="w-full h-48 object-cover rounded border border-slate-700 bg-black">
+          </div>
+          <div class="bg-slate-900 p-3 rounded-lg border border-slate-700">
+            <span class="text-xs font-bold text-emerald-400 block mb-2">📸 Foto do Competidor</span>
+            <img id="auto-img-competidor" src="" class="w-full h-48 object-cover rounded border border-slate-700 bg-black">
+          </div>
+        </div>
+
+        <div id="auto-card-parecer" class="bg-slate-900 p-5 rounded-xl border border-slate-700 space-y-3">
+          <div class="flex justify-between items-center">
+            <h3 class="font-bold text-white text-sm">Parecer da Inteligência Artificial</h3>
+            <span id="auto-badge-status" class="text-xs px-3 py-1 rounded-full font-bold">---</span>
+          </div>
+          <p id="auto-texto-justificativa" class="text-xs text-slate-300 leading-relaxed">Aguardando execução...</p>
+          <div class="pt-2 flex justify-end">
+            <button id="auto-btn-aplicar" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition">
+              💾 Aplicar Nota no Banco
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Módulo Firebase JS & Lógica Unificada -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { initializeFirestore, collection, getDocs, doc, getDoc, updateDoc, writeBatch, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { GoogleGenAI } from "@google/genai";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
+      authDomain: "teste-2994e.firebaseapp.com",
+      projectId: "teste-2994e",
+      storageBucket: "teste-2994e.firebasestorage.app",
+      messagingSenderId: "614899420753",
+      appId: "1:614899420753:web:5fc23c3d0e8facdf593270"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+
+    let enviosGlobais = [];
+    let envioAtual = null;
+    let notasLocais = {};     
+    let decisoesTomadas = {}; 
+    let filtroStatus = "pendente";
+
+    // --- CONTROLE DE ABAS ---
+    const tabBtnManual = document.getElementById('tab-btn-manual');
+    const tabBtnAuto = document.getElementById('tab-btn-auto');
+    const viewManual = document.getElementById('view-manual');
+    const viewAuto = document.getElementById('view-auto');
+
+    tabBtnManual.addEventListener('click', () => {
+      tabBtnManual.className = "px-3 py-1.5 rounded-md bg-indigo-600 text-white font-semibold text-xs transition";
+      tabBtnAuto.className = "px-3 py-1.5 rounded-md text-slate-400 hover:text-white text-xs transition";
+      viewManual.classList.remove('hidden');
+      viewAuto.classList.add('hidden');
+    });
+
+    tabBtnAuto.addEventListener('click', () => {
+      tabBtnAuto.className = "px-3 py-1.5 rounded-md bg-indigo-600 text-white font-semibold text-xs transition";
+      tabBtnManual.className = "px-3 py-1.5 rounded-md text-slate-400 hover:text-white text-xs transition";
+      viewAuto.classList.remove('hidden');
+      viewManual.classList.add('hidden');
+      popularSelectCompetidoresAuto();
+    });
+
+    // --- LÓGICA DE DADOS (COMUM) ---
+    document.getElementById('filter-pendente').addEventListener('click', (e) => {
+      filtroStatus = "pendente";
+      e.target.className = "flex-1 py-1.5 rounded-md bg-indigo-600 font-semibold text-white transition";
+      document.getElementById('filter-avaliado').className = "flex-1 py-1.5 rounded-md hover:bg-slate-800 text-slate-400 transition";
+      renderizarListaEnvios();
+    });
+
+    document.getElementById('filter-avaliado').addEventListener('click', (e) => {
+      filtroStatus = "avaliado";
+      e.target.className = "flex-1 py-1.5 rounded-md bg-indigo-600 font-semibold text-white transition";
+      document.getElementById('filter-pendente').className = "flex-1 py-1.5 rounded-md hover:bg-slate-800 text-slate-400 transition";
+      renderizarListaEnvios();
+    });
+
+    document.getElementById('btn-atualizar').addEventListener('click', carregarEnvios);
+
+    async function carregarEnvios() {
+      const listaDiv = document.getElementById('lista-envios');
+      listaDiv.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Atualizando submissões...</p>';
+
+      try {
+        const q = query(collection(db, "envios_competidores"), orderBy("enviado_em", "desc"));
+        const snapshot = await getDocs(q);
+
+        enviosGlobais = [];
+        snapshot.forEach((docSnap) => {
+          enviosGlobais.push({ id: docSnap.id, ...docSnap.data() });
+        });
+
+        document.getElementById('badge-total-envios').textContent = enviosGlobais.length;
+        renderizarListaEnvios();
+      } catch (err) {
+        console.error("Erro ao carregar envios:", err);
+        listaDiv.innerHTML = '<p class="text-xs text-rose-400 text-center py-6">Erro ao carregar dados.</p>';
+      }
+    }
+
+    function renderizarListaEnvios() {
+      const listaDiv = document.getElementById('lista-envios');
+      listaDiv.innerHTML = '';
+
+      const filtrados = enviosGlobais.filter(e => (e.status_avaliacao || "pendente") === filtroStatus);
+
+      if (filtrados.length === 0) {
+        listaDiv.innerHTML = `<p class="text-xs text-slate-500 text-center py-6">Nenhum envio encontrado.</p>`;
+        return;
+      }
+
+      filtrados.forEach((envio) => {
+        const item = document.createElement('div');
+        const isSelected = envioAtual && envioAtual.id === envio.id;
+
+        item.className = `p-3 rounded-xl border transition cursor-pointer flex justify-between items-center ${
+          isSelected ? 'bg-indigo-900/50 border-indigo-500 text-white' : 'bg-slate-900/60 border-slate-700/80 hover:border-slate-500 text-slate-300'
+        }`;
+
+        const dataEnvio = envio.enviado_em ? new Date(envio.enviado_em.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+
+        item.innerHTML = `
+          <div>
+            <div class="font-bold text-sm text-white">Carro #${envio.numero_carro}</div>
+            <div class="text-xs text-slate-400 truncate max-w-[130px]">${envio.nome_prova || 'Prova'}</div>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700 block mb-1">${dataEnvio}</span>
+            <span class="text-xs font-semibold ${envio.pontuacao_total !== undefined ? 'text-emerald-400' : 'text-amber-400'}">
+              ${envio.pontuacao_total !== undefined ? envio.pontuacao_total + ' pts' : 'Pendente'}
+            </span>
+          </div>
+        `;
+
+        item.addEventListener('click', () => selecionarCarroParaAvaliar(envio));
+        listaDiv.appendChild(item);
+      });
+    }
+
+    async function selecionarCarroParaAvaliar(envio) {
+      envioAtual = envio;
+      notasLocais = {};
+      decisoesTomadas = {};
+
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('eval-content').classList.remove('hidden');
+
+      document.getElementById('eval-nome-prova').textContent = envio.nome_prova || 'Etapa Gincana';
+      document.getElementById('eval-carro-titulo').textContent = `Carro / Equipe #${envio.numero_carro}`;
+      
+      const dataStr = envio.enviado_em ? new Date(envio.enviado_em.seconds * 1000).toLocaleString() : 'Recentemente';
+      document.getElementById('eval-data').textContent = `Enviado em: ${dataStr}`;
+
+      let tarefasGabarito = [];
+      if (envio.prova_id) {
+        try {
+          const provaSnap = await getDoc(doc(db, "provas", envio.prova_id));
+          if (provaSnap.exists()) {
+            tarefasGabarito = provaSnap.data().tarefas || [];
+          }
+        } catch (e) {
+          console.warn("Não foi possível carregar pontos da prova original:", e);
         }
       }
-    </script>
-</head>
-<body class="bg-gray-100 min-h-screen text-gray-800">
 
-    <!-- Header -->
-    <header class="bg-slate-900 text-white shadow-md py-4 px-6 flex justify-between items-center">
-        <h1 class="text-xl font-bold flex items-center gap-2">
-            🤖 Painel de Avaliação Automática por IA
-        </h1>
-        <a href="index.html" class="text-sm bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition">Voltar ao Início</a>
-    </header>
+      renderizarComparativo(envio.respostas || [], tarefasGabarito);
+      renderizarListaEnvios();
+    }
 
-    <main class="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
+    function renderizarComparativo(respostas, tarefasGabarito) {
+      const container = document.getElementById('container-comparacao');
+      container.innerHTML = '';
 
-        <!-- Seleção de Competidor e Tarefa -->
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-                <label class="block text-sm font-semibold mb-1">Selecione o Competidor / Carro:</label>
-                <select id="selectCompetidor" class="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500">
-                    <option value="">Carregando competidores...</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-sm font-semibold mb-1">Selecione a Tarefa / PC:</label>
-                <select id="selectTarefa" class="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500">
-                    <option value="">Selecione um competidor primeiro</option>
-                </select>
-            </div>
-            
-            <div class="md:col-span-2 flex justify-end">
-                <button id="btnExecutarIA" onclick="executarAvaliacaoIA()" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-6 rounded-lg shadow transition flex items-center justify-center gap-2 disabled:opacity-50" disabled>
-                    ✨ Analisar com IA (Gemini)
-                </button>
-            </div>
-        </div>
+      respostas.forEach((item, index) => {
+        const numTarefa = item.ordem || (index + 1);
+        const tarefaOriginal = tarefasGabarito.find(t => (t.ordem || 0) === numTarefa) || tarefasGabarito[index];
+        const pontosOficiais = tarefaOriginal?.pontos ?? item.regras?.pontos ?? 100;
 
-        <!-- Área de Comparação de Imagens -->
-        <div id="painelComparacao" class="grid grid-cols-1 md:grid-cols-2 gap-6 hidden">
-            <!-- Foto Gabarito -->
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center">
-                <h3 class="font-bold text-gray-700 mb-2">📸 Foto Gabarito (Referência)</h3>
-                <div class="w-full h-64 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center border">
-                    <img id="imgGabarito" src="" alt="Gabarito" class="object-contain h-full w-full">
-                </div>
-            </div>
-            <!-- Foto Enviada pelo Competidor -->
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center">
-                <h3 class="font-bold text-gray-700 mb-2">🚙 Foto do Competidor</h3>
-                <div class="w-full h-64 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center border">
-                    <img id="imgCompetidor" src="" alt="Competidor" class="object-contain h-full w-full">
-                </div>
-            </div>
-        </div>
+        const jaAvaliadoAnteriormente = item.pontos_concedidos !== undefined;
+        const notaInicial = jaAvaliadoAnteriormente ? item.pontos_concedidos : 0;
+        
+        notasLocais[numTarefa] = notaInicial;
+        decisoesTomadas[numTarefa] = jaAvaliadoAnteriormente;
 
-        <!-- Resultado da Análise da IA -->
-        <div id="painelResultado" class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hidden space-y-4">
-            <h3 class="text-lg font-bold border-b pb-2 flex items-center gap-2">
-                📊 Parecer Automático da Inteligência Artificial
+        const isAprovado = jaAvaliadoAnteriormente && notaInicial === pontosOficiais && pontosOficiais > 0;
+        const isReprovado = jaAvaliadoAnteriormente && notaInicial === 0;
+
+        const card = document.createElement('div');
+        card.id = `card-tarefa-${numTarefa}`;
+        card.className = `bg-slate-900 rounded-xl p-5 border transition-all space-y-4 ${
+          !jaAvaliadoAnteriormente ? 'border-amber-500/50 shadow-sm' : 'border-slate-700'
+        }`;
+
+        card.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">
+            <h3 class="font-bold text-white text-base flex items-center gap-2">
+              <span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">${numTarefa}</span>
+              Tarefa #${numTarefa}
             </h3>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="p-4 rounded-lg border flex items-center justify-between" id="boxStatusAprovacao">
-                    <span class="font-semibold text-gray-600">Status da Tarefa:</span>
-                    <span id="txtStatusIA" class="px-3 py-1 rounded-full text-sm font-bold uppercase">Aguardando</span>
-                </div>
-                <div class="p-4 rounded-lg border bg-gray-50 flex items-center justify-between">
-                    <span class="font-semibold text-gray-600">Pontos Sugeridos:</span>
-                    <span id="txtPontosIA" class="text-xl font-extrabold text-blue-600">0 pts</span>
-                </div>
+            <span class="text-xs bg-slate-800 text-emerald-400 border border-emerald-800/60 px-3 py-1 rounded-full font-bold">
+              VALOR DA FOTO: ${pontosOficiais} PONTOS
+            </span>
+          </div>
+
+          <div class="bg-indigo-950/40 border border-indigo-800/40 rounded-lg p-3 text-xs text-indigo-200 flex flex-wrap gap-4 items-center">
+            <span class="font-bold text-indigo-400">🔍 Critérios do Gabarito:</span>
+            <span>👥 <strong>Pessoas:</strong> ${item.regras?.qtd_competidores || tarefaOriginal?.qtd_competidores || 1}</span>
+            <span>🚗 <strong>Exige Carro:</strong> ${(item.regras?.exigir_carro ?? tarefaOriginal?.exigir_carro) ? 'SIM' : 'NÃO'}</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-slate-800/80 p-3 rounded-lg border border-slate-700">
+              <span class="text-xs font-bold text-slate-400 block mb-2 uppercase">📌 Gabarito Oficial (Referência)</span>
+              <img src="${item.foto_gabarito_url}" class="w-full h-60 object-cover rounded-md border border-slate-600 bg-black cursor-pointer" onclick="window.open('${item.foto_gabarito_url}')">
             </div>
-
-            <!-- Campo de Justificativa (Principalmente para reprovações) -->
-            <div>
-                <label class="block text-sm font-semibold mb-1 text-gray-700">💬 Justificativa detalhada da IA (Motivo da Aprovação/Reprovação):</label>
-                <textarea id="txtJustificativaIA" rows="4" class="w-full border rounded-lg p-3 bg-gray-50 text-sm font-mono focus:ring-2 focus:ring-blue-500" placeholder="A IA detalhará aqui o motivo pelo qual aprovou ou reprovou a imagem com base nas regras..."></textarea>
+            <div class="bg-slate-800/80 p-3 rounded-lg border border-slate-700">
+              <span class="text-xs font-bold text-emerald-400 block mb-2 uppercase">📸 Foto Enviada pelo Competidor</span>
+              <img src="${item.foto_competidor_url}" class="w-full h-60 object-cover rounded-md border border-slate-600 bg-black cursor-pointer" onclick="window.open('${item.foto_competidor_url}')">
             </div>
+          </div>
 
-            <div class="flex justify-end gap-3 pt-2">
-                <button onclick="salvarAvaliacaoNoFirebase()" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg shadow transition">
-                    💾 Salvar Avaliação no Sistema
-                </button>
+          <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold text-slate-300">Decisão:</span>
+              <button type="button" id="btn-aprovar-${numTarefa}" onclick="atribuirDecisao(${numTarefa}, ${pontosOficiais})" class="px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${isAprovado ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-700 text-slate-300 hover:bg-emerald-700 hover:text-white'}">
+                <span>✅ Aprovar (${pontosOficiais} pts)</span>
+              </button>
+              <button type="button" id="btn-reprovar-${numTarefa}" onclick="atribuirDecisao(${numTarefa}, 0)" class="px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${isReprovado ? 'bg-rose-600 text-white shadow-md' : 'bg-slate-700 text-slate-300 hover:bg-rose-700 hover:text-white'}">
+                <span>❌ Reprovar (0 pts)</span>
+              </button>
             </div>
-        </div>
+            <div class="text-right">
+              <span class="text-xs text-slate-400 block">Pontos na Tarefa:</span>
+              <span id="label-pts-${numTarefa}" class="text-lg font-bold ${jaAvaliadoAnteriormente ? (notaInicial > 0 ? 'text-emerald-400' : 'text-rose-400') : 'text-amber-400'}">
+                ${jaAvaliadoAnteriormente ? notaInicial + ' pts' : 'Pendente'}
+              </span>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+      atualizarPlacarTotal();
+    }
 
-    </main>
+    window.atribuirDecisao = function(numTarefa, pontos) {
+      notasLocais[numTarefa] = pontos;
+      decisoesTomadas[numTarefa] = true;
+      const card = document.getElementById(`card-tarefa-${numTarefa}`);
+      if (card) card.className = "bg-slate-900 rounded-xl p-5 border border-slate-700 space-y-4";
 
-    <!-- Script de Integração -->
-    <script type="module">
-        import { GoogleGenAI } from "https://esm.run/@google/genai";
+      const btnAprovar = document.getElementById(`btn-aprovar-${numTarefa}`);
+      const btnReprovar = document.getElementById(`btn-reprovar-${numTarefa}`);
+      const labelPts = document.getElementById(`label-pts-${numTarefa}`);
 
-        // CONFIGURAÇÃO DO SEU FIREBASE (Compat)
-        const firebaseConfig = {
-            apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
-            authDomain: "teste-2994e.firebaseapp.com",
-            databaseURL: "https://teste-2994e-default-rtdb.firebaseio.com",
-            projectId: "teste-2994e",
-            storageBucket: "teste-2994e.firebasestorage.app",
-            messagingSenderId: "614899420753",
-            appId: "1:614899420753:web:5fc23c3d0e8facdf593270"
-        };
+      if (pontos > 0) {
+        btnAprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-emerald-600 text-white shadow-md";
+        btnReprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-emerald-700 hover:text-white";
+        labelPts.className = "text-lg font-bold text-emerald-400";
+      } else {
+        btnAprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-emerald-700 hover:text-white";
+        btnReprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-rose-600 text-white shadow-md";
+        labelPts.className = "text-lg font-bold text-rose-400";
+      }
+      labelPts.textContent = `${pontos} pts`;
+      atualizarPlacarTotal();
+    };
 
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-        const db = firebase.firestore();
+    function atualizarPlacarTotal() {
+      let total = 0;
+      Object.values(notasLocais).forEach(pts => total += pts);
+      document.getElementById('eval-placar-total').textContent = `${total} pts`;
+      document.getElementById('eval-placar-rodape').textContent = `${total} pts`;
+    }
 
-        // CHAVE MODERNA DO GEMINI EMBUTIDA DIRETAMENTE
-        const GEMINI_API_KEY = "AQ.Ab8RN6JrqfqNiWaMmmY8MpTurRGR1CgAgXz2wSWluWHdD-sk_w";
+    document.getElementById('btn-finalizar-carro').addEventListener('click', async () => {
+      if (!envioAtual) return;
+      const totalTarefas = (envioAtual.respostas || []).length;
+      const tarefasPendentes = [];
+      for (let i = 1; i <= totalTarefas; i++) {
+        if (!decisoesTomadas[i]) tarefasPendentes.push(i);
+      }
+      if (tarefasPendentes.length > 0) {
+        alert(`⚠️ Você possui ${tarefasPendentes.length} fotos não avaliadas (#${tarefasPendentes.join(', #')}).`);
+        return;
+      }
 
-        let dadosAtuais = {
-            competidorId: null,
-            tarefaId: null,
-            regras: {},
-            fotoGabarito: '',
-            fotoCompetidor: ''
-        };
+      const btn = document.getElementById('btn-finalizar-carro');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳ Salvando...</span>';
 
-        // Carregar lista de competidores ao iniciar
-        async function carregarCompetidores() {
-            const select = document.getElementById('selectCompetidor');
-            try {
-                const snapshot = await db.collection('competidores').get();
-                select.innerHTML = '<option value="">Selecione um competidor...</option>';
-                if (snapshot.empty) {
-                    select.innerHTML = '<option value="">Nenhum competidor encontrado no Firestore</option>';
-                    return;
-                }
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    select.innerHTML += `<option value="${doc.id}">${data.nome || data.carro || 'Competidor ' + doc.id}</option>`;
-                });
-            } catch (error) {
-                console.error("Erro ao carregar competidores:", error);
-                select.innerHTML = '<option value="">Erro ao conectar com o Firestore</option>';
-            }
-        }
-
-        document.getElementById('selectCompetidor').addEventListener('change', async (e) => {
-            const competidorId = e.target.value;
-            dadosAtuais.competidorId = competidorId;
-            const selectTarefa = document.getElementById('selectTarefa');
-            
-            if (!competidorId) {
-                selectTarefa.innerHTML = '<option value="">Selecione um competidor primeiro</option>';
-                return;
-            }
-
-            selectTarefa.innerHTML = '<option value="">Carregando tarefas...</option>';
-            try {
-                const snapshot = await db.collection('competidores').doc(competidorId).collection('tarefas').get();
-                selectTarefa.innerHTML = '<option value="">Selecione a tarefa...</option>';
-                if (snapshot.empty) {
-                    selectTarefa.innerHTML = '<option value="">Nenhuma tarefa para este competidor</option>';
-                    return;
-                }
-                snapshot.forEach(doc => {
-                    const t = doc.data();
-                    selectTarefa.innerHTML += `<option value="${doc.id}">${t.titulo || 'Tarefa ' + doc.id}</option>`;
-                });
-            } catch (err) {
-                console.error("Erro tarefas:", err);
-                selectTarefa.innerHTML = '<option value="">Erro ao carregar tarefas</option>';
-            }
+      try {
+        let somaTotal = 0;
+        const respostasAtualizadas = (envioAtual.respostas || []).map((resp, idx) => {
+          const numT = resp.ordem || (idx + 1);
+          const ptsConcedidos = notasLocais[numT] || 0;
+          somaTotal += ptsConcedidos;
+          return { ...resp, pontos_concedidos: ptsConcedidos };
         });
 
-        document.getElementById('selectTarefa').addEventListener('change', async (e) => {
-            const tarefaId = e.target.value;
-            dadosAtuais.tarefaId = tarefaId;
-            if (!tarefaId) return;
-
-            try {
-                const docRef = await db.collection('competidores').doc(dadosAtuais.competidorId).collection('tarefas').doc(tarefaId).get();
-                if (docRef.exists) {
-                    const data = docRef.data();
-                    dadosAtuais.fotoGabarito = data.fotoGabarito || '';
-                    dadosAtuais.fotoCompetidor = data.fotoCompetidor || '';
-                    dadosAtuais.regras = {
-                        qtd_competidores: data.qtd_pessoas || 1,
-                        exigir_carro: data.exigir_carro !== undefined ? data.exigir_carro : true,
-                        pegadinhas: data.pegadinhas || 'Nenhuma restrição especial',
-                        pontos: data.pontos || 100
-                    };
-
-                    // Exibir imagens na tela
-                    document.getElementById('imgGabarito').src = dadosAtuais.fotoGabarito;
-                    document.getElementById('imgCompetidor').src = dadosAtuais.fotoCompetidor;
-                    document.getElementById('painelComparacao').classList.remove('hidden');
-                    document.getElementById('btnExecutarIA').removeAttribute('disabled');
-                }
-            } catch (err) {
-                console.error("Erro ao buscar dados da tarefa:", err);
-            }
+        await updateDoc(doc(db, "envios_competidores", envioAtual.id), {
+          respostas: respostasAtualizadas,
+          pontuacao_total: somaTotal,
+          status_avaliacao: "avaliado"
         });
 
-        // Função executada ao clicar no botão de analisar com IA
-        window.executarAvaliacaoIA = async function() {
-            const btn = document.getElementById('btnExecutarIA');
-            btn.textContent = "Analisando com Gemini...";
-            btn.setAttribute('disabled', 'true');
+        alert(`Avaliação salva com sucesso! Pontuação Final: ${somaTotal} pts.`);
+        btn.disabled = false;
+        btn.innerHTML = '<span>💾 Salvar Avaliação Final</span>';
+        await carregarEnvios();
+      } catch (err) {
+        alert("Erro ao salvar: " + err.message);
+        btn.disabled = false;
+        btn.innerHTML = '<span>💾 Salvar Avaliação Final</span>';
+      }
+    });
 
-            try {
-                const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    // --- LÓGICA DE AVALIAÇÃO AUTOMÁTICA (IA) ---
+    async function popularSelectCompetidoresAuto() {
+      const selectComp = document.getElementById('auto-select-competidor');
+      selectComp.innerHTML = '<option value="">Selecione um carro...</option>';
+      
+      if (enviosGlobais.length === 0) {
+        await carregarEnvios();
+      }
 
-                // Limpa os prefixos do Base64 caso existam
-                const cleanGabarito = dadosAtuais.fotoGabarito.includes(",") 
-                    ? dadosAtuais.fotoGabarito.split(",")[1] 
-                    : dadosAtuais.fotoGabarito;
-                    
-                const cleanCompetidor = dadosAtuais.fotoCompetidor.includes(",") 
-                    ? dadosAtuais.fotoCompetidor.split(",")[1] 
-                    : dadosAtuais.fotoCompetidor;
+      enviosGlobais.forEach(envio => {
+        const opt = document.createElement('option');
+        opt.value = envio.id;
+        opt.textContent = `Carro #${envio.numero_carro} - ${envio.nome_prova || 'Prova'}`;
+        selectComp.appendChild(opt);
+      });
+    }
 
-                const promptText = `
-                    Você é o juiz chefe de um rally e gincana de veículos. Sua tarefa é comparar rigorosamente a "Foto Gabarito" (referência correta) com a "Foto do Competidor" enviada.
+    document.getElementById('auto-select-competidor').addEventListener('change', (e) => {
+      const id = e.target.value;
+      const selectTarefa = document.getElementById('auto-select-tarefa');
+      selectTarefa.innerHTML = '<option value="">Selecione a tarefa...</option>';
+      
+      if (!id) {
+        selectTarefa.disabled = true;
+        document.getElementById('btn-analisar-ia').disabled = true;
+        return;
+      }
 
-                    REGRAS DA TAREFA:
-                    - Quantidade de pessoas exigidas na foto: ${dadosAtuais.regras.qtd_competidores}
-                    - O carro do competidor deve aparecer na foto? ${dadosAtuais.regras.exigir_carro ? 'SIM' : 'NÃO'}
-                    - Instruções especiais / Pegadinhas: "${dadosAtuais.regras.pegadinhas}"
-                    - Valor total de pontos da tarefa: ${dadosAtuais.regras.pontos}
+      const envio = enviosGlobais.find(item => item.id === id);
+      if (envio && envio.respostas) {
+        envio.respostas.forEach((resp, idx) => {
+          const numT = resp.ordem || (idx + 1);
+          const opt = document.createElement('option');
+          opt.value = numT;
+          opt.textContent = `Tarefa #${numT} (Valor: ${resp.regras?.pontos || 100} pts)`;
+          selectTarefa.appendChild(opt);
+        });
+        selectTarefa.disabled = false;
+      }
+    });
 
-                    Responda estritamente em formato JSON puro (sem blocos de código markdown ao redor, apenas o JSON cru) contendo exatamente estas chaves:
-                    {
-                      "aprovado": true ou false,
-                      "pontos_atribuidos": número (valor total ${dadosAtuais.regras.pontos} se aprovado, ou 0 se reprovado),
-                      "justificativa": "Texto detalhado explicando o motivo da aprovação ou detalhando o erro específico caso tenha sido reprovado."
-                    }
-                `;
+    document.getElementById('auto-select-tarefa').addEventListener('change', (e) => {
+      document.getElementById('btn-analisar-ia').disabled = !e.target.value;
+    });
 
-                const response = await ai.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: [
-                        { text: promptText },
-                        { inlineData: { mimeType: "image/jpeg", data: cleanGabarito } },
-                        { inlineData: { mimeType: "image/jpeg", data: cleanCompetidor } }
-                    ]
-                });
+    // Função auxiliar para converter imagem URL para base64 para o Gemini
+    async function urlParaBase64(url) {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.readAsDataURL(blob);
+      });
+    }
 
-                let respostaTexto = response.text.trim();
-                
-                // Limpeza de blocos de markdown caso o modelo adicione
-                if (respostaTexto.startsWith("```json")) {
-                    respostaTexto = respostaTexto.replace(/^```json/, "").replace(/```$/, "").trim();
-                } else if (respostaTexto.startsWith("```")) {
-                    respostaTexto = respostaTexto.replace(/^```/, "").replace(/```$/, "").trim();
-                }
+    document.getElementById('btn-analisar-ia').addEventListener('click', async () => {
+      const compId = document.getElementById('auto-select-competidor').value;
+      const tarefaNum = parseInt(document.getElementById('auto-select-tarefa').value);
+      
+      const envio = enviosGlobais.find(i => i.id === compId);
+      if (!envio) return;
 
-                const dadosIA = JSON.parse(respostaTexto);
-                preencherResultadoIA(dadosIA);
+      const respostaObj = envio.respostas.find((r, idx) => (r.ordem || (idx + 1)) === tarefaNum);
+      if (!respostaObj) return;
 
-            } catch (error) {
-                console.error("Erro na chamada da IA:", error);
-                alert("Erro ao processar a avaliação automática: " + error.message);
-            } finally {
-                btn.textContent = "✨ Analisar com IA (Gemini)";
-                btn.removeAttribute('disabled');
-            }
+      const btn = document.getElementById('btn-analisar-ia');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳ Analisando com Gemini...</span>';
+
+      try {
+        document.getElementById('auto-img-gabarito').src = respostaObj.foto_gabarito_url;
+        document.getElementById('auto-img-competidor').src = respostaObj.foto_competidor_url;
+        document.getElementById('auto-resultado-container').classList.remove('hidden');
+
+        // Conversão das imagens para Base64
+        const [base64Gabarito, base64Competidor] = await Promise.all([
+          urlParaBase64(respostaObj.foto_gabarito_url),
+          urlParaBase64(respostaObj.foto_competidor_url)
+        ]);
+
+        // Instanciação correta do SDK Gemini via ESM
+        const ai = new GoogleGenAI();
+        
+        const prompt = `Você é um juiz rigoroso de uma gincana de rali e automóveis. 
+Compare a "Foto do Gabarito (Referência)" com a "Foto enviada pelo Competidor".
+Critérios da tarefa: 
+- Quantidade de pessoas exigidas: ${respostaObj.regras?.qtd_competidores || 1}
+- Exige Carro: ${respostaObj.regras?.exigir_carro ? 'Sim' : 'Não'}
+
+Responda estritamente em formato JSON com duas chaves:
+1. "aprovado": booleano (true se cumpre perfeitamente o gabarito e critérios, false caso contrário).
+2. "justificativa": string detalhada em português explicando o motivo da aprovação ou reprovação.`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [
+            { text: "Foto do Gabarito Oficial:" },
+            { inlineData: { mimeType: "image/jpeg", data: base64Gabarito } },
+            { text: "Foto enviada pelo Competidor:" },
+            { inlineData: { mimeType: "image/jpeg", data: base64Competidor } },
+            { text: prompt }
+          ],
+          config: {
+            responseMimeType: "application/json"
+          }
+        });
+
+        const resultadoJson = JSON.parse(response.text);
+        
+        const badge = document.getElementById('auto-badge-status');
+        const texto = document.getElementById('auto-texto-justificativa');
+        
+        texto.textContent = resultadoJson.justificativa;
+        if (resultadoJson.aprovado) {
+          badge.className = "text-xs px-3 py-1 rounded-full font-bold bg-emerald-600 text-white";
+          badge.textContent = "APROVADO POR IA";
+        } else {
+          badge.className = "text-xs px-3 py-1 rounded-full font-bold bg-rose-600 text-white";
+          badge.textContent = "REPROVADO POR IA";
         }
 
-        function preencherResultadoIA(res) {
-            const boxStatus = document.getElementById('boxStatusAprovacao');
-            const txtStatus = document.getElementById('txtStatusIA');
-            const txtPontos = document.getElementById('txtPontosIA');
-            const txtJustificativa = document.getElementById('txtJustificativaIA');
-
-            if (res.aprovado) {
-                boxStatus.className = "p-4 rounded-lg border bg-green-50 border-green-200 flex items-center justify-between";
-                txtStatus.className = "px-3 py-1 rounded-full text-sm font-bold uppercase bg-green-200 text-green-800";
-                txtStatus.textContent = "Aprovado";
-            } else {
-                boxStatus.className = "p-4 rounded-lg border bg-red-50 border-red-200 flex items-center justify-between";
-                txtStatus.className = "px-3 py-1 rounded-full text-sm font-bold uppercase bg-red-200 text-red-800";
-                txtStatus.textContent = "Reprovado";
+        // Botão para aplicar a nota sugerida pela IA direto no banco
+        document.getElementById('auto-btn-aplicar').onclick = async () => {
+          const pontosAtribuir = resultadoJson.aprovado ? (respostaObj.regras?.pontos || 100) : 0;
+          const respostasAtualizadas = envio.respostas.map((r, idx) => {
+            const numT = r.ordem || (idx + 1);
+            if (numT === tarefaNum) {
+              return { ...r, pontos_concedidos: pontosAtribuir };
             }
+            return r;
+          });
 
-            txtPontos.textContent = (res.pontos_atribuidos || 0) + " pts";
-            txtJustificativa.value = res.justificativa || "Sem justificativa fornecida.";
-            document.getElementById('painelResultado').classList.remove('hidden');
-        }
+          let somaTotal = 0;
+          respostasAtualizadas.forEach(r => somaTotal += (r.pontos_concedidos || 0));
 
-        window.salvarAvaliacaoNoFirebase = async function() {
-            try {
-                if (!dadosAtuais.competidorId || !dadosAtuais.tarefaId) {
-                    alert("Nenhum competidor ou tarefa selecionada.");
-                    return;
-                }
+          await updateDoc(doc(db, "envios_competidores", envio.id), {
+            respostas: respostasAtualizadas,
+            pontuacao_total: somaTotal
+          });
 
-                const statusAprovado = document.getElementById('txtStatusIA').textContent === 'APROVADO';
-                const pontosAtribuidos = parseInt(document.getElementById('txtPontosIA').textContent) || 0;
-                const justificativaFinal = document.getElementById('txtJustificativaIA').value;
+          alert(`Nota de ${pontosAtribuir} pontos aplicada com sucesso para a Tarefa #${tarefaNum}!`);
+          await carregarEnvios();
+        };
 
-                await db.collection('competidores').doc(dadosAtuais.competidorId).collection('tarefas').doc(dadosAtuais.tarefaId).update({
-                    status: statusAprovado ? 'aprovado' : 'reprovado',
-                    pontos_ganhos: pontosAtribuidos,
-                    justificativa_ia: justificativaFinal,
-                    avaliado_por: 'IA (Gemini)'
-                });
+      } catch (err) {
+        console.error("Erro na análise da IA:", err);
+        alert("Erro ao processar com a IA: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>✨ Analisar com IA (Gemini)</span>';
+      }
+    });
 
-                alert("Avaliação salva com sucesso no Firestore!");
-            } catch (err) {
-                console.error("Erro ao salvar:", err);
-                alert("Erro ao salvar dados no Firebase.");
-            }
-        }
+    // Utilitários globais do PDF e Zerar Banco
+    document.getElementById('btn-exportar-pdf').addEventListener('click', () => {
+      if (enviosGlobais.length === 0) {
+        alert("Não há dados para exportar!");
+        return;
+      }
+      const { jsPDF } = window.jspdf;
+      const docPdf = new jsPDF();
+      docPdf.setFontSize(18);
+      docPdf.text("Relatório da Gincana - Classificação Geral", 14, 20);
+      docPdf.setFontSize(10);
+      docPdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 28);
 
-        // Inicializar carregamento ao abrir a página
-        window.onload = carregarCompetidores;
-    </script>
+      const ranking = [...enviosGlobais].sort((a, b) => (b.pontuacao_total || 0) - (a.pontuacao_total || 0));
+      const tableBody = ranking.map((item, index) => [
+        `#${index + 1}`, `Carro #${item.numero_carro}`, item.nome_prova || "Gincana",
+        item.status_avaliacao === 'avaliado' ? 'Avaliado' : 'Pendente',
+        item.pontuacao_total !== undefined ? `${item.pontuacao_total} pts` : "Pendente"
+      ]);
+
+      docPdf.autoTable({
+        startY: 35,
+        head: [['Posição', 'Equipe / Carro', 'Prova', 'Status', 'Pontuação Total']],
+        body: tableBody,
+        theme: 'striped',
+        headStyles: { fillColor: [16, 185, 129] }
+      });
+      docPdf.save(`Resultado_Gincana.pdf`);
+    });
+
+    document.getElementById('btn-zerar-banco').addEventListener('click', async () => {
+      const senha = prompt("🔒 Digite a senha para zerar o banco (123456):");
+      if (senha !== "123456") {
+        if (senha !== null) alert("Senha incorreta!");
+        return;
+      }
+      if (!confirm("Tem certeza absoluta?")) return;
+
+      const batch = writeBatch(db);
+      const snapshotEnvios = await getDocs(collection(db, "envios_competidores"));
+      snapshotEnvios.forEach((docSnap) => batch.delete(docSnap.ref));
+      await batch.commit();
+      alert("Banco limpo com sucesso!");
+      location.reload();
+    });
+
+    carregarEnvios();
+  </script>
 </body>
 </html>
