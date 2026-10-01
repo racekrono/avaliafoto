@@ -129,8 +129,8 @@
 
     let enviosGlobais = [];
     let envioAtual = null;
-    let notasLocais = {};     // guarda os pontos atribuídos { numTarefa: pontos }
-    let decisoesTomadas = {}; // guarda se a decisão foi tomada { numTarefa: true/false }
+    let notasLocais = {};     
+    let decisoesTomadas = {}; 
     let filtroStatus = "pendente";
 
     document.getElementById('filter-pendente').addEventListener('click', (e) => {
@@ -251,7 +251,6 @@
         const tarefaOriginal = tarefasGabarito.find(t => (t.ordem || 0) === numTarefa) || tarefasGabarito[index];
         const pontosOficiais = tarefaOriginal?.pontos ?? item.regras?.pontos ?? 100;
 
-        // Se já foi avaliado anteriormente no banco, restaura o estado
         const jaAvaliadoAnteriormente = item.pontos_concedidos !== undefined;
         const notaInicial = jaAvaliadoAnteriormente ? item.pontos_concedidos : 0;
         
@@ -326,7 +325,7 @@
 
     window.atribuirDecisao = function(numTarefa, pontos) {
       notasLocais[numTarefa] = pontos;
-      decisoesTomadas[numTarefa] = true; // Marca que o juiz tomou a decisão para esta tarefa
+      decisoesTomadas[numTarefa] = true;
 
       const card = document.getElementById(`card-tarefa-${numTarefa}`);
       if (card) card.className = "bg-slate-900 rounded-xl p-5 border border-slate-700 space-y-4";
@@ -363,14 +362,12 @@
       const totalTarefas = (envioAtual.respostas || []).length;
       const tarefasPendentes = [];
 
-      // Verifica qual foto ainda não foi avaliada
       for (let i = 1; i <= totalTarefas; i++) {
         if (!decisoesTomadas[i]) {
           tarefasPendentes.push(i);
         }
       }
 
-      // TRAVA DE SEGURANÇA: Bloqueia o salvamento se houver pendências
       if (tarefasPendentes.length > 0) {
         const primeiraPendente = tarefasPendentes[0];
         const cardPendente = document.getElementById(`card-tarefa-${primeiraPendente}`);
