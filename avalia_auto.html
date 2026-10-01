@@ -130,7 +130,7 @@
       <div class="flex items-center justify-between pb-4 border-b border-slate-700">
         <div>
           <h2 class="text-xl font-bold text-white flex items-center gap-2"><span>🤖</span> Painel de Avaliação Automática por IA</h2>
-          <p class="text-xs text-slate-400">Selecione o competidor e a tarefa para o Gemini analisar a compatibilidade da foto.</p>
+          <p class="text-xs text-slate-400">Selecione o competidor e a tarefa para o Gemini analisar de forma automática.</p>
         </div>
       </div>
 
@@ -205,6 +205,9 @@
 
     const app = initializeApp(firebaseConfig);
     const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+
+    // Chave da API do Gemini inserida diretamente no código
+    const GEMINI_API_KEY = "AQ.Ab8RN6LbTbV2Ip3VWI5mxwCioG25R4p25ZFeMmtPygTpDAVDjw";
 
     let enviosGlobais = [];
     let envioAtual = null;
@@ -532,7 +535,6 @@
       document.getElementById('btn-analisar-ia').disabled = !e.target.value;
     });
 
-    // Função auxiliar para converter imagem URL para base64 para o Gemini
     async function urlParaBase64(url) {
       const response = await fetch(url);
       const blob = await response.blob();
@@ -562,14 +564,13 @@
         document.getElementById('auto-img-competidor').src = respostaObj.foto_competidor_url;
         document.getElementById('auto-resultado-container').classList.remove('hidden');
 
-        // Conversão das imagens para Base64
         const [base64Gabarito, base64Competidor] = await Promise.all([
           urlParaBase64(respostaObj.foto_gabarito_url),
           urlParaBase64(respostaObj.foto_competidor_url)
         ]);
 
-        // Instanciação correta do SDK Gemini via ESM
-        const ai = new GoogleGenAI();
+        // Utilizando a chave integrada diretamente
+        const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
         
         const prompt = `Você é um juiz rigoroso de uma gincana de rali e automóveis. 
 Compare a "Foto do Gabarito (Referência)" com a "Foto enviada pelo Competidor".
@@ -609,7 +610,6 @@ Responda estritamente em formato JSON com duas chaves:
           badge.textContent = "REPROVADO POR IA";
         }
 
-        // Botão para aplicar a nota sugerida pela IA direto no banco
         document.getElementById('auto-btn-aplicar').onclick = async () => {
           const pontosAtribuir = resultadoJson.aprovado ? (respostaObj.regras?.pontos || 100) : 0;
           const respostasAtualizadas = envio.respostas.map((r, idx) => {
