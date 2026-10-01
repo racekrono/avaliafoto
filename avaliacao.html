@@ -52,14 +52,14 @@
     <!-- COLUNA DIREITA: ÁREA DE COMPARAÇÃO E AVALIAÇÃO LADO A LADO -->
     <section class="lg:col-span-3 bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-6">
       
-      <!-- Estado Inicial (Nada Selecionado) -->
+      <!-- Estado Inicial -->
       <div id="empty-state" class="text-center py-20 space-y-3">
         <span class="text-5xl block">👈</span>
         <h3 class="text-lg font-bold text-slate-300">Selecione um Carro na lista ao lado</h3>
         <p class="text-sm text-slate-400 max-w-md mx-auto">Escolha uma equipe cadastrada para comparar as fotos enviadas com os gabaritos e atribuir a pontuação.</p>
       </div>
 
-      <!-- Conteúdo da Avaliação do Carro Selecionado -->
+      <!-- Conteúdo da Avaliação -->
       <div id="eval-content" class="hidden space-y-8">
         
         <!-- Header do Carro Selecionado -->
@@ -79,7 +79,7 @@
         <!-- Contêiner dinâmico para as fotos do carro -->
         <div id="container-comparacao" class="space-y-8"></div>
 
-        <!-- BOTÃO DE SALVAMENTO AO FIM DA PÁGINA -->
+        <!-- BOTÃO DE SALVAMENTO -->
         <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 flex justify-between items-center gap-4">
           <div>
             <span class="text-xs text-slate-400 block">Total Acumulado:</span>
@@ -99,7 +99,7 @@
   <!-- Módulo Firebase JS (v10) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { initializeFirestore, collection, getDocs, doc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { initializeFirestore, collection, getDocs, doc, getDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
@@ -198,7 +198,7 @@
       });
     }
 
-    function selecionarCarroParaAvaliar(envio) {
+    async function selecionarCarroParaAvaliar(envio) {
       envioAtual = envio;
       notasLocais = {};
 
@@ -211,19 +211,35 @@
       const dataStr = envio.enviado_em ? new Date(envio.enviado_em.seconds * 1000).toLocaleString() : 'Recentemente';
       document.getElementById('eval-data').textContent = `Enviado em: ${dataStr}`;
 
-      renderizarComparativo(envio.respostas || []);
+      // Busca os dados da prova original no Firestore para obter os pontos cadastrados no Admin
+      let tarefasGabarito = [];
+      if (envio.prova_id) {
+        try {
+          const provaSnap = await getDoc(doc(db, "provas", envio.prova_id));
+          if (provaSnap.exists()) {
+            tarefasGabarito = provaSnap.data().tarefas || [];
+          }
+        } catch (e) {
+          console.warn("Não foi possível carregar pontos da prova original:", e);
+        }
+      }
+
+      renderizarComparativo(envio.respostas || [], tarefasGabarito);
       renderizarListaEnvios();
     }
 
-    function renderizarComparativo(respostas) {
+    function renderizarComparativo(respostas, tarefasGabarito) {
       const container = document.getElementById('container-comparacao');
       container.innerHTML = '';
 
       respostas.forEach((item, index) => {
         const numTarefa = item.ordem || (index + 1);
-        const pontosOficiais = item.regras?.pontos || 100;
 
-        // Se já foi avaliado anteriormente mantém a nota dada, caso contrário inicia como 0
+        // Busca o valor cadastrado na prova gabarito pelo Admin
+        const tarefaOriginal = tarefasGabarito.find(t => (t.ordem || 0) === numTarefa) || tarefasGabarito[index];
+        const pontosOficiais = tarefaOriginal?.pontos ?? item.regras?.pontos ?? 100;
+
+        // Mantém a nota já salva se a avaliação já foi gravada antes
         const notaInicial = item.pontos_concedidos !== undefined ? item.pontos_concedidos : 0;
         notasLocais[numTarefa] = notaInicial;
 
@@ -246,9 +262,9 @@
 
           <div class="bg-indigo-950/40 border border-indigo-800/40 rounded-lg p-3 text-xs text-indigo-200 flex flex-wrap gap-4 items-center">
             <span class="font-bold text-indigo-400">🔍 Critérios do Gabarito:</span>
-            <span>👥 <strong>Pessoas:</strong> ${item.regras?.qtd_competidores || 1}</span>
-            <span>🚗 <strong>Exige Carro:</strong> ${item.regras?.exigir_carro ? 'SIM' : 'NÃO'}</span>
-            ${item.regras?.pegadinhas ? `<span class="text-amber-300">💡 <strong>Pegadinha:</strong> ${item.regras.pegadinhas}</span>` : ''}
+            <span>👥 <strong>Pessoas:</strong> ${item.regras?.qtd_competidores || tarefaOriginal?.qtd_competidores || 1}</span>
+            <span>🚗 <strong>Exige Carro:</strong> ${(item.regras?.exigir_carro ?? tarefaOriginal?.exigir_carro) ? 'SIM' : 'NÃO'}</span>
+            ${(item.regras?.pegadinhas || tarefaOriginal?.pegadinhas) ? `<span class="text-amber-300">💡 <strong>Pegadinha:</strong> ${item.regras?.pegadinhas || tarefaOriginal?.pegadinhas}</span>` : ''}
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -263,7 +279,7 @@
             </div>
           </div>
 
-          <!-- AÇÕES DO JUIZ (APROVAR OU REPROVAR) -->
+          <!-- AÇÕES DO JUIZ -->
           <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 flex flex-wrap justify-between items-center gap-4">
             <div class="flex items-center gap-3">
               <span class="text-xs font-bold text-slate-300">Decisão:</span>
@@ -297,7 +313,7 @@
 
       if (pontos > 0) {
         btnAprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-emerald-600 text-white shadow-md";
-        btnReprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-rose-700 hover:text-white";
+        btnReprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-emerald-700 hover:text-white";
         labelPts.className = "text-lg font-bold text-emerald-400";
       } else {
         btnAprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-emerald-700 hover:text-white";
