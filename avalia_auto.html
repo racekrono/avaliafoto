@@ -126,16 +126,6 @@
         </div>
       </div>
 
-      <!-- Configuração da Chave da Groq -->
-      <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 space-y-2">
-        <label class="block text-xs font-bold text-slate-300">Chave da API Groq (Armazenada apenas no seu navegador):</label>
-        <div class="flex gap-2">
-          <input type="password" id="input-groq-key" placeholder="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" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-indigo-500">
-          <button id="btn-salvar-groq-key" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition">Salvar Chave</button>
-        </div>
-        <p class="text-[10px] text-slate-400">Você pode obter uma chave gratuita em <a href="https://console.groq.com/" target="_blank" class="text-indigo-400 underline">console.groq.com</a></p>
-      </div>
-
       <!-- Formulário de Seleção -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
@@ -204,6 +194,9 @@
       appId: "1:614899420753:web:5fc23c3d0e8facdf593270"
     };
 
+    // Chave fixa da Groq configurada permanentemente no código
+    const GROQ_API_KEY = "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";
+
     const app = initializeApp(firebaseConfig);
     const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
@@ -212,22 +205,6 @@
     let notasLocais = {};     
     let decisoesTomadas; 
     let filtroStatus = "pendente";
-
-    // Carregar chave salva no navegador se houver
-    const savedGroqKey = localStorage.getItem('groq_api_key');
-    if (savedGroqKey) {
-      document.getElementById('input-groq-key').value = savedGroqKey;
-    }
-
-    document.getElementById('btn-salvar-groq-key').addEventListener('click', () => {
-      const key = document.getElementById('input-groq-key').value.trim();
-      if (!key) {
-        alert("Digite uma chave válida!");
-        return;
-      }
-      localStorage.setItem('groq_api_key', key);
-      alert("Chave salva com sucesso no navegador!");
-    });
 
     // --- CONTROLE DE ABAS ---
     const tabBtnManual = document.getElementById('tab-btn-manual');
@@ -560,12 +537,6 @@
     }
 
     document.getElementById('btn-analisar-ia').addEventListener('click', async () => {
-      const groqKey = document.getElementById('input-groq-key').value.trim();
-      if (!groqKey) {
-        alert("Por favor, insira e salve sua chave da API da Groq no campo acima.");
-        return;
-      }
-
       const compId = document.getElementById('auto-select-competidor').value;
       const tarefaNum = parseInt(document.getElementById('auto-select-tarefa').value);
       
@@ -602,11 +573,11 @@ Responda estritamente em formato JSON válido contendo exatamente duas chaves:
         const apiResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${groqKey}`,
+            'Authorization': `Bearer ${GROQ_API_KEY}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-          model: "meta-llama/llama-4-scout-17b-16e-instruct",
+            model: "meta-llama/llama-4-scout-17b-16e-instruct",
             messages: [
               {
                 role: "user",
