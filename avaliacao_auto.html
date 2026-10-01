@@ -3,81 +3,61 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IA 100% Automática - Avaliação de Fotos</title>
+  <title>Avaliação 100% Automática - Gincana</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Bibliotecas para Geração de PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans min-h-screen">
 
   <!-- Header -->
   <header class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
     <div class="flex items-center gap-3">
-      <span class="text-2xl">🤖</span>
+      <span class="text-2xl">⚡🤖</span>
       <div>
-        <h1 class="text-lg font-bold text-white">Avaliação 100% Automática (Gemini IA)</h1>
-        <p class="text-xs text-slate-400">Processamento Autônomo com Justificativas Automáticas</p>
+        <h1 class="text-lg font-bold text-white">Avaliação 100% Automática (IA em Lote)</h1>
+        <p class="text-xs text-slate-400">Processa e pontua todas as submissões pendentes de forma autônoma.</p>
       </div>
     </div>
     <div class="flex items-center gap-2">
-      <button id="btn-exportar-pdf" class="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition">
-        📄 Exportar PDF
-      </button>
-      <button id="btn-atualizar" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded-lg border border-slate-600 transition">
-        🔄 Atualizar
+      <button id="btn-voltar" onclick="window.location.href='avaliacao_piloto.html'" class="bg-slate-700 hover:bg-slate-600 text-xs px-3.5 py-2 rounded-lg transition">
+        ⬅️ Voltar ao Painel Manual
       </button>
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+  <main class="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
 
-    <!-- Painel de Controle -->
+    <!-- CARD DE CONTROLE -->
     <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-4">
       <div class="flex flex-wrap justify-between items-center gap-4">
         <div>
-          <h2 class="text-xl font-bold text-white">Fila de Processamento por IA</h2>
-          <p class="text-xs text-slate-400">A IA compara o gabarito com a foto do competidor, pontua e gera a justificativa automaticamente.</p>
+          <h2 class="text-xl font-black text-white">Processamento em Massa</h2>
+          <p class="text-xs text-slate-400">A IA varrerá todos os carros com status pendente e aplicará as notas automaticamente.</p>
         </div>
-        <button id="btn-iniciar-ia" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-3 rounded-lg shadow-lg transition flex items-center gap-2 text-sm">
-          <span>🚀 Iniciar Avaliação Automática por IA</span>
+        <button id="btn-iniciar-automacao" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-3 rounded-lg shadow-lg transition flex items-center gap-2 text-sm">
+          <span>🚀 Iniciar Automação Geral</span>
         </button>
       </div>
 
       <!-- Barra de Progresso -->
-      <div id="progress-box" class="hidden bg-slate-900 p-4 rounded-lg border border-slate-700 space-y-2">
+      <div id="progresso-container" class="hidden space-y-2 pt-2 border-t border-slate-700">
         <div class="flex justify-between text-xs text-slate-300">
-          <span id="progress-text">Aguardando início...</span>
-          <span id="progress-percent" class="font-bold text-indigo-400">0%</span>
+          <span id="progresso-status">Progresso: 0 / 0</span>
+          <span id="progresso-porcentagem">0%</span>
         </div>
-        <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
-          <div id="progress-bar" class="bg-indigo-500 h-full w-0 transition-all duration-300"></div>
+        <div class="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-700">
+          <div id="barra-progresso" class="bg-indigo-500 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
         </div>
       </div>
     </div>
 
-    <!-- Tabela de Submissões -->
-    <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-4">
-      <h3 class="font-bold text-slate-200">Resultados, Status e Justificativas da IA</h3>
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm text-slate-300">
-          <thead class="bg-slate-900 text-xs text-slate-400 uppercase border-b border-slate-700">
-            <tr>
-              <th class="p-3">Equipe / Carro</th>
-              <th class="p-3">Prova</th>
-              <th class="p-3">Enviado Em</th>
-              <th class="p-3">Status</th>
-              <th class="p-3">Pontuação</th>
-              <th class="p-3">Justificativa / Parecer IA</th>
-            </tr>
-          </thead>
-          <tbody id="table-body" class="divide-y divide-slate-700">
-            <tr>
-              <td colspan="6" class="p-6 text-center text-xs text-slate-500">Carregando dados do banco...</td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- LOG DE EXECUÇÃO -->
+    <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-3">
+      <h3 class="font-bold text-slate-200 text-sm flex items-center gap-2">
+        <span>📜</span> Log de Atividades da Automação
+      </h3>
+      <div id="log-container" class="bg-slate-900 rounded-lg p-4 h-80 overflow-y-auto font-mono text-xs text-slate-300 space-y-2 border border-slate-700">
+        <p class="text-slate-500">Aguardando início do processamento...</p>
       </div>
     </div>
 
@@ -86,7 +66,7 @@
   <!-- Módulo Firebase JS -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { initializeFirestore, collection, getDocs, doc, getDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { initializeFirestore, collection, getDocs, doc, getDoc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
@@ -100,76 +80,22 @@
     const app = initializeApp(firebaseConfig);
     const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
-    // COLE A SUA CHAVE DO GOOGLE AI STUDIO AQUI
-    const GEMINI_API_KEY = "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw"; 
+    // Chave informada
+    const GEMINI_API_KEY = "AQ.Ab8RN6K3tCfX5oCgzhZVtr4Qoayj2sa0avnuEm4qoOCA40ehAA";
 
-    let enviosGlobais = [];
+    function adicionarLog(mensagem, tipo = 'info') {
+      const container = document.getElementById('log-container');
+      const p = document.createElement('div');
+      
+      let cor = 'text-slate-300';
+      if (tipo === 'sucesso') cor = 'text-emerald-400 font-bold';
+      if (tipo === 'erro') cor = 'text-rose-400 font-bold';
+      if (tipo === 'aviso') cor = 'text-amber-400';
 
-    document.getElementById('btn-atualizar').addEventListener('click', carregarEnvios);
-
-    async function carregarEnvios() {
-      const tbody = document.getElementById('table-body');
-      tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-xs text-slate-400">Atualizando submissões...</td></tr>';
-
-      try {
-        const q = query(collection(db, "envios_competidores"), orderBy("enviado_em", "desc"));
-        const snapshot = await getDocs(q);
-
-        enviosGlobais = [];
-        snapshot.forEach((docSnap) => {
-          enviosGlobais.push({ id: docSnap.id, ...docSnap.data() });
-        });
-
-        renderizarTabela();
-      } catch (err) {
-        console.error(err);
-        tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-xs text-rose-400">Erro ao carregar envios.</td></tr>';
-      }
-    }
-
-    function renderizarTabela() {
-      const tbody = document.getElementById('table-body');
-      tbody.innerHTML = '';
-
-      if (enviosGlobais.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-xs text-slate-500">Nenhum envio registrado no banco.</td></tr>';
-        return;
-      }
-
-      enviosGlobais.forEach((item) => {
-        const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-700/50 transition align-top";
-
-        const dataStr = item.enviado_em ? new Date(item.enviado_em.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
-        const isAvaliado = item.status_avaliacao === 'avaliado';
-
-        // Pega a justificativa da primeira resposta ou geral gravada
-        let justificativaResumo = "Aguardando processamento autônomo...";
-        if (isAvaliado && item.respostas && item.respostas.length > 0) {
-          const justificativas = item.respostas.map((r, idx) => `T#${r.ordem || (idx+1)}: ${r.justificativa || 'Sem observação'}`).join(' | ');
-          justificativaResumo = justificativas;
-        }
-
-        tr.innerHTML = `
-          <td class="p-3 font-bold text-white whitespace-nowrap">Carro #${item.numero_carro}</td>
-          <td class="p-3 text-slate-300 text-xs whitespace-nowrap">${item.nome_prova || 'Gincana'}</td>
-          <td class="p-3 text-slate-400 text-xs whitespace-nowrap">${dataStr}</td>
-          <td class="p-3 whitespace-nowrap">
-            <span class="text-xs px-2.5 py-1 rounded-full font-semibold ${isAvaliado ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-amber-950 text-amber-300 border border-amber-800'}">
-              ${isAvaliado ? '✅ Avaliado' : '⏳ Pendente'}
-            </span>
-          </td>
-          <td class="p-3 font-bold text-base whitespace-nowrap ${item.pontuacao_total !== undefined ? 'text-emerald-400' : 'text-slate-500'}">
-            ${item.pontuacao_total !== undefined ? item.pontuacao_total + ' pts' : '--'}
-          </td>
-          <td class="p-3 text-xs text-slate-300 max-w-md">
-            <div class="bg-slate-900 p-2.5 rounded border border-slate-700 italic">
-              ${justificativaResumo}
-            </div>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
+      p.className = `border-b border-slate-800/60 pb-1 ${cor}`;
+      p.innerHTML = `[${new Date().toLocaleTimeString()}] ${mensagem}`;
+      container.appendChild(p);
+      container.scrollTop = container.scrollHeight;
     }
 
     function base64ToGenerativePart(base64Data) {
@@ -186,28 +112,19 @@
       return { inlineData: { data: data, mimeType: mimeType } };
     }
 
-    async function avaliarFotoComIA(fotoGabaritoBase64, fotoCompetidorBase64, regra, pontosMax) {
-      if (!GEMINI_API_KEY || GEMINI_API_KEY === "SUA_CHAVE_API_AQUI") {
-        alert("⚠️ Por favor, insira sua chave do Google AI Studio na variável GEMINI_API_KEY no código!");
-        throw new Error("Chave de API não configurada.");
-      }
-
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    async function consultarIA(fotoGabaritoBase64, fotoCompetidorBase64, regra, pontosMax) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
 
       const promptTexto = `
-        Você é um juiz de gincana fotográfica automatizada.
-        Analise a imagem 1 (FOTO GABARITO DE REFERÊNCIA) e a imagem 2 (FOTO ENVIADA PELO COMPETIDOR).
+        Compare a FOTO GABARITO (REFERÊNCIA) com a FOTO DO COMPETIDOR.
+        Critérios:
+        - Qtd pessoas: ${regra?.qtd_competidores || 1}
+        - Exige carro: ${regra?.exigir_carro ? 'SIM' : 'NÃO'}
+        - Pegadinha: ${regra?.pegadinhas || 'Nenhuma'}
 
-        CRITÉRIOS DA PROVA:
-        - Quantidade de pessoas exigidas: ${regra?.qtd_competidores || 1}
-        - Exige carro visível: ${regra?.exigir_carro ? 'SIM' : 'NÃO'}
-        - Pegadinha ou regra especial: ${regra?.pegadinhas || 'Nenhuma'}
-
-        INSTRUÇÃO:
-        Se a foto do competidor cumprir os requisitos e corresponder ao gabarito, aprove atribuindo ${pontosMax} pontos. Caso contrário, reprove atribuindo 0 pontos.
-
-        Responda ESTRITAMENTE em formato JSON puro, sem blocos markdown:
-        {"aprovado": true, "pontos": ${pontosMax}, "justificativa": "Explicação detalhada do motivo da aprovação ou reprovação"}
+        Aprove concedendo ${pontosMax} pontos se cumprir os critérios. Caso contrário, dê 0 e explique o motivo da reprovação.
+        Responda ESTRITAMENTE em JSON puro:
+        {"aprovado": true, "pontos": ${pontosMax}, "justificativa": "Explicação detalhada"}
       `;
 
       const partG = base64ToGenerativePart(fotoGabaritoBase64);
@@ -225,122 +142,123 @@
         ]
       };
 
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(bodyData)
-        });
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GEMINI_API_KEY}`
+        },
+        body: JSON.stringify(bodyData)
+      });
 
-        if (!response.ok) {
-          const errJson = await response.json();
-          throw new Error(errJson.error?.message || "Erro na API do Gemini");
-        }
-
-        const data = await response.json();
-        const responseText = data.candidates[0].content.parts[0].text.trim();
-        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(cleanJson);
-
-      } catch (e) {
-        console.error("Erro na IA:", e);
-        return { aprovado: false, pontos: 0, justificativa: "Erro ao analisar: " + e.message };
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Erro na API (${response.status}): ${errText}`);
       }
+
+      const data = await response.json();
+      const responseText = data.candidates[0].content.parts[0].text.trim();
+      const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleanJson);
     }
 
-    document.getElementById('btn-iniciar-ia').addEventListener('click', async () => {
-      const pendentes = enviosGlobais.filter(e => (e.status_avaliacao || 'pendente') === 'pendente');
-
-      if (pendentes.length === 0) {
-        alert("Não há submissões pendentes de avaliação!");
-        return;
-      }
-
-      const btn = document.getElementById('btn-iniciar-ia');
-      const progressBox = document.getElementById('progress-box');
-      const progressText = document.getElementById('progress-text');
-      const progressPercent = document.getElementById('progress-percent');
-      const progressBar = document.getElementById('progress-bar');
-
+    document.getElementById('btn-iniciar-automacao').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-iniciar-automacao');
       btn.disabled = true;
       btn.classList.add('opacity-50');
-      progressBox.classList.remove('hidden');
 
-      for (let i = 0; i < pendentes.length; i++) {
-        const envio = pendentes[i];
-        progressText.textContent = `Avaliando Carro #${envio.numero_carro} (${i + 1} de ${pendentes.length})...`;
-        const pct = Math.round(((i) / pendentes.length) * 100);
-        progressPercent.textContent = `${pct}%`;
-        progressBar.style.width = `${pct}%`;
+      document.getElementById('progresso-container').classList.remove('hidden');
+      document.getElementById('log-container').innerHTML = '';
 
-        let tarefasGabarito = [];
-        if (envio.prova_id) {
-          try {
-            const provaSnap = await getDoc(doc(db, "provas", envio.prova_id));
-            if (provaSnap.exists()) tarefasGabarito = provaSnap.data().tarefas || [];
-          } catch (e) {}
+      adicionarLog("Buscando envios pendentes no Firestore...", "aviso");
+
+      try {
+        const q = query(collection(db, "envios_competidores"), where("status_avaliacao", "==", "pendente"));
+        const snapshot = await getDocs(q);
+
+        const envios = [];
+        snapshot.forEach(docSnap => envios.push({ id: docSnap.id, ...docSnap.data() }));
+
+        if (envios.length === 0) {
+          adicionarLog("Nenhum envio pendente encontrado para processar.", "aviso");
+          btn.disabled = false;
+          btn.classList.remove('opacity-50');
+          return;
         }
 
-        let somaTotal = 0;
-        const respostasAtualizadas = [];
+        adicionarLog(`Encontrados ${envios.length} carros pendentes. Iniciando varredura...`, "sucesso");
 
-        for (let idx = 0; idx < (envio.respostas || []).length; idx++) {
-          const resp = envio.respostas[idx];
-          const numT = resp.ordem || (idx + 1);
-          const tarefaOriginal = tarefasGabarito.find(t => (t.ordem || 0) === numT) || tarefasGabarito[idx];
-          const pontosMax = tarefaOriginal?.pontos ?? resp.regras?.pontos ?? 100;
+        let processados = 0;
+        const total = envios.length;
 
-          const analiseIA = await avaliarFotoComIA(
-            resp.foto_gabarito_url,
-            resp.foto_competidor_url,
-            resp.regras || tarefaOriginal,
-            pontosMax
-          );
+        for (const envio of envios) {
+          adicionarLog(`Processando Carro #${envio.numero_carro} (${envio.nome_prova || 'Prova'})...`);
 
-          const ptsConcedidos = analiseIA.aprovado ? pontosMax : 0;
-          somaTotal += ptsConcedidos;
+          // Buscar tarefas da prova se necessário
+          let tarefasGabarito = [];
+          if (envio.prova_id) {
+            try {
+              const provaSnap = await getDoc(doc(db, "provas", envio.prova_id));
+              if (provaSnap.exists()) tarefasGabarito = provaSnap.data().tarefas || [];
+            } catch (e) {}
+          }
 
-          respostasAtualizadas.push({
-            ...resp,
-            pontos_concedidos: ptsConcedidos,
-            justificativa: analiseIA.justificativa,
-            analise_ia: analiseIA
+          let somaTotal = 0;
+          const respostasAtualizadas = [];
+          const respostas = envio.respostas || [];
+
+          for (let index = 0; index < respostas.length; index++) {
+            const item = respostas[index];
+            const numTarefa = item.ordem || (index + 1);
+            const tarefaOriginal = tarefasGabarito.find(t => (t.ordem || 0) === numTarefa) || tarefasGabarito[index];
+            const pontosOficiais = tarefaOriginal?.pontos ?? item.regras?.pontos ?? 100;
+
+            try {
+              const resultadoIA = await consultarIA(item.foto_gabarito_url, item.foto_competidor_url, item.regras || tarefaOriginal, pontosOficiais);
+              const pts = resultadoIA.pontos || 0;
+              somaTotal += pts;
+
+              respostasAtualizadas.push({
+                ...item,
+                pontos_concedidos: pts,
+                justificativa: resultadoIA.justificativa || "Avaliado automaticamente pela IA."
+              });
+
+              adicionarLog(`  ↳ Tarefa #${numTarefa}: ${pts > 0 ? 'Aprovado ('+pts+' pts)' : 'Reprovado (0 pts)'}`);
+            } catch (err) {
+              adicionarLog(`  ↳ Erro na Tarefa #${numTarefa}: ${err.message}`, "erro");
+              respostasAtualizadas.push({
+                ...item,
+                pontos_concedidos: 0,
+                justificativa: "Erro na automação da IA: " + err.message
+              });
+            }
+          }
+
+          // Gravar no Firestore
+          await updateDoc(doc(db, "envios_competidores", envio.id), {
+            respostas: respostasAtualizadas,
+            pontuacao_total: somaTotal,
+            status_avaliacao: "avaliado"
           });
+
+          processados++;
+          const porcentagem = Math.round((processados / total) * 100);
+          document.getElementById('barra-progresso').style.width = `${porcentagem}%`;
+          document.getElementById('progresso-status').textContent = `Progresso: ${processados} / ${total}`;
+          document.getElementById('progresso-porcentagem').textContent = `${porcentagem}%`;
+
+          adicionarLog(`✅ Carro #${envio.numero_carro} concluído. Total: ${somaTotal} pts.`, "sucesso");
         }
 
-        await updateDoc(doc(db, "envios_competidores", envio.id), {
-          respostas: respostasAtualizadas,
-          pontuacao_total: somaTotal,
-          status_avaliacao: "avaliado",
-          avaliado_por_ia: true
-        });
+        adicionarLog("🎉 Automação concluída com sucesso para todos os registros!", "sucesso");
+      } catch (err) {
+        adicionarLog("Erro crítico na automação: " + err.message, "erro");
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('opacity-50');
       }
-
-      progressPercent.textContent = `100%`;
-      progressBar.style.width = `100%`;
-      progressText.textContent = "✅ Processamento e salvamento de justificativas concluídos!";
-
-      btn.disabled = false;
-      btn.classList.remove('opacity-50');
-
-      setTimeout(async () => {
-        await carregarEnvios();
-      }, 1000);
     });
-
-    document.getElementById('btn-exportar-pdf').addEventListener('click', () => {
-      if (enviosGlobais.length === 0) return alert("Sem dados!");
-      const { jsPDF } = window.jspdf;
-      const docPdf = new jsPDF();
-      docPdf.setFontSize(16);
-      docPdf.text("Relatório Gincana - Avaliação IA", 14, 20);
-      const ranking = [...enviosGlobais].sort((a, b) => (b.pontuacao_total || 0) - (a.pontuacao_total || 0));
-      const body = ranking.map((item, idx) => [`#${idx + 1}`, `Carro #${item.numero_carro}`, item.nome_prova || "Gincana", `${item.pontuacao_total || 0} pts`]);
-      docPdf.autoTable({ startY: 30, head: [['Posição', 'Equipe', 'Prova', 'Pontuação']], body, theme: 'striped', headStyles: { fillColor: [79, 70, 229] } });
-      docPdf.save('Resultado_Gincana_IA.pdf');
-    });
-
-    carregarEnvios();
   </script>
 </body>
 </html>
