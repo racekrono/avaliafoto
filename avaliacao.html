@@ -131,6 +131,7 @@
     let envioAtual = null;
     let notasLocais = {};     
     let decisoesTomadas = {}; 
+    let motivosLocais = {};   
     let filtroStatus = "pendente";
 
     document.getElementById('filter-pendente').addEventListener('click', (e) => {
@@ -215,6 +216,7 @@
       envioAtual = envio;
       notasLocais = {};
       decisoesTomadas = {};
+      motivosLocais = {};
 
       document.getElementById('empty-state').classList.add('hidden');
       document.getElementById('eval-content').classList.remove('hidden');
@@ -253,9 +255,11 @@
 
         const jaAvaliadoAnteriormente = item.pontos_concedidos !== undefined;
         const notaInicial = jaAvaliadoAnteriormente ? item.pontos_concedidos : 0;
+        const motivoInicial = item.motivo_reprovacao || "";
         
         notasLocais[numTarefa] = notaInicial;
         decisoesTomadas[numTarefa] = jaAvaliadoAnteriormente;
+        motivosLocais[numTarefa] = motivoInicial;
 
         const isAprovado = jaAvaliadoAnteriormente && notaInicial === pontosOficiais && pontosOficiais > 0;
         const isReprovado = jaAvaliadoAnteriormente && notaInicial === 0;
@@ -315,6 +319,14 @@
               </span>
             </div>
           </div>
+
+          <!-- CAMPO DE JUSTIFICATIVA DA REPROVAÇÃO -->
+          <div id="container-motivo-${numTarefa}" class="${isReprovado ? '' : 'hidden'} space-y-1.5 bg-rose-950/20 p-3 rounded-lg border border-rose-900/40">
+            <label for="input-motivo-${numTarefa}" class="block text-xs font-semibold text-rose-300 flex items-center gap-1">
+              <span>✍️ Motivo da Reprovação (explicar para a equipe):</span>
+            </label>
+            <input type="text" id="input-motivo-${numTarefa}" value="${motivoInicial}" oninput="atualizarMotivo(${numTarefa}, this.value)" placeholder="Ex: Faltou um integrante na foto, carro cortado, etc..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-rose-500 transition">
+          </div>
         `;
 
         container.appendChild(card);
@@ -333,19 +345,33 @@
       const btnAprovar = document.getElementById(`btn-aprovar-${numTarefa}`);
       const btnReprovar = document.getElementById(`btn-reprovar-${numTarefa}`);
       const labelPts = document.getElementById(`label-pts-${numTarefa}`);
+      const containerMotivo = document.getElementById(`container-motivo-${numTarefa}`);
+      const inputMotivo = document.getElementById(`input-motivo-${numTarefa}`);
 
       if (pontos > 0) {
         btnAprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-emerald-600 text-white shadow-md";
-        btnReprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-emerald-700 hover:text-white";
+        btnReprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-rose-700 hover:text-white";
         labelPts.className = "text-lg font-bold text-emerald-400";
+        
+        // Se aprovado, esconde o campo de motivo e limpa o texto
+        containerMotivo.classList.add('hidden');
+        motivosLocais[numTarefa] = "";
+        if (inputMotivo) inputMotivo.value = "";
       } else {
         btnAprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-emerald-700 hover:text-white";
         btnReprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-rose-600 text-white shadow-md";
         labelPts.className = "text-lg font-bold text-rose-400";
+        
+        // Se reprovado, exibe o campo de motivo
+        containerMotivo.classList.remove('hidden');
       }
 
       labelPts.textContent = `${pontos} pts`;
       atualizarPlacarTotal();
+    };
+
+    window.atualizarMotivo = function(numTarefa, valor) {
+      motivosLocais[numTarefa] = valor;
     };
 
     function atualizarPlacarTotal() {
@@ -390,10 +416,13 @@
         const respostasAtualizadas = (envioAtual.respostas || []).map((resp, idx) => {
           const numT = resp.ordem || (idx + 1);
           const ptsConcedidos = notasLocais[numT] || 0;
+          const motivoReprov = ptsConcedidos === 0 ? (motivosLocais[numT] || "").trim() : "";
+          
           somaTotal += ptsConcedidos;
           return {
             ...resp,
-            pontos_concedidos: ptsConcedidos
+            pontos_concedidos: ptsConcedidos,
+            motivo_reprovacao: motivoReprov
           };
         });
 
