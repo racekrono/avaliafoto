@@ -92,7 +92,7 @@
         <div id="container-comparacao" class="space-y-8"></div>
 
         <!-- BOTÃO DE SALVAMENTO AO FIM DA PÁGINA -->
-        <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 flex justify-between items-center gap-4">
+        <div class="bg-slate-900 p-6 rounded-xl border border-slate-700 flex flex-wrap justify-between items-center gap-4">
           <div>
             <span class="text-xs text-slate-400 block">Total Acumulado:</span>
             <span id="eval-placar-rodape" class="text-2xl font-bold text-emerald-400">0 pts</span>
@@ -129,7 +129,8 @@
 
     let enviosGlobais = [];
     let envioAtual = null;
-    let notasLocais = {};
+    let notasLocais = {};     // guarda os pontos atribuídos { numTarefa: pontos }
+    let decisoesTomadas = {}; // guarda se a decisão foi tomada { numTarefa: true/false }
     let filtroStatus = "pendente";
 
     document.getElementById('filter-pendente').addEventListener('click', (e) => {
@@ -213,6 +214,7 @@
     async function selecionarCarroParaAvaliar(envio) {
       envioAtual = envio;
       notasLocais = {};
+      decisoesTomadas = {};
 
       document.getElementById('empty-state').classList.add('hidden');
       document.getElementById('eval-content').classList.remove('hidden');
@@ -249,14 +251,21 @@
         const tarefaOriginal = tarefasGabarito.find(t => (t.ordem || 0) === numTarefa) || tarefasGabarito[index];
         const pontosOficiais = tarefaOriginal?.pontos ?? item.regras?.pontos ?? 100;
 
-        const notaInicial = item.pontos_concedidos !== undefined ? item.pontos_concedidos : 0;
+        // Se já foi avaliado anteriormente no banco, restaura o estado
+        const jaAvaliadoAnteriormente = item.pontos_concedidos !== undefined;
+        const notaInicial = jaAvaliadoAnteriormente ? item.pontos_concedidos : 0;
+        
         notasLocais[numTarefa] = notaInicial;
+        decisoesTomadas[numTarefa] = jaAvaliadoAnteriormente;
 
-        const isAprovado = notaInicial === pontosOficiais && pontosOficiais > 0;
-        const isReprovado = item.pontos_concedidos !== undefined && notaInicial === 0;
+        const isAprovado = jaAvaliadoAnteriormente && notaInicial === pontosOficiais && pontosOficiais > 0;
+        const isReprovado = jaAvaliadoAnteriormente && notaInicial === 0;
 
         const card = document.createElement('div');
-        card.className = "bg-slate-900 rounded-xl p-5 border border-slate-700 space-y-4";
+        card.id = `card-tarefa-${numTarefa}`;
+        card.className = `bg-slate-900 rounded-xl p-5 border transition-all space-y-4 ${
+          !jaAvaliadoAnteriormente ? 'border-amber-500/50 shadow-sm' : 'border-slate-700'
+        }`;
 
         card.innerHTML = `
           <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">
@@ -302,7 +311,9 @@
 
             <div class="text-right">
               <span class="text-xs text-slate-400 block">Pontos na Tarefa:</span>
-              <span id="label-pts-${numTarefa}" class="text-lg font-bold ${notaInicial > 0 ? 'text-emerald-400' : 'text-slate-400'}">${notaInicial} pts</span>
+              <span id="label-pts-${numTarefa}" class="text-lg font-bold ${jaAvaliadoAnteriormente ? (notaInicial > 0 ? 'text-emerald-400' : 'text-rose-400') : 'text-amber-400'}">
+                ${jaAvaliadoAnteriormente ? notaInicial + ' pts' : 'Pendente'}
+              </span>
             </div>
           </div>
         `;
@@ -315,6 +326,10 @@
 
     window.atribuirDecisao = function(numTarefa, pontos) {
       notasLocais[numTarefa] = pontos;
+      decisoesTomadas[numTarefa] = true; // Marca que o juiz tomou a decisão para esta tarefa
+
+      const card = document.getElementById(`card-tarefa-${numTarefa}`);
+      if (card) card.className = "bg-slate-900 rounded-xl p-5 border border-slate-700 space-y-4";
 
       const btnAprovar = document.getElementById(`btn-aprovar-${numTarefa}`);
       const btnReprovar = document.getElementById(`btn-reprovar-${numTarefa}`);
@@ -341,9 +356,33 @@
       document.getElementById('eval-placar-rodape').textContent = `${total} pts`;
     }
 
-    // SALVAR AVALIAÇÃO FINAL DO CARRO
+    // SALVAR AVALIAÇÃO FINAL DO CARRO (COM TRAVA DE SEGURANÇA)
     document.getElementById('btn-finalizar-carro').addEventListener('click', async () => {
       if (!envioAtual) return;
+
+      const totalTarefas = (envioAtual.respostas || []).length;
+      const tarefasPendentes = [];
+
+      // Verifica qual foto ainda não foi avaliada
+      for (let i = 1; i <= totalTarefas; i++) {
+        if (!decisoesTomadas[i]) {
+          tarefasPendentes.push(i);
+        }
+      }
+
+      // TRAVA DE SEGURANÇA: Bloqueia o salvamento se houver pendências
+      if (tarefasPendentes.length > 0) {
+        const primeiraPendente = tarefasPendentes[0];
+        const cardPendente = document.getElementById(`card-tarefa-${primeiraPendente}`);
+        
+        if (cardPendente) {
+          cardPendente.classList.add('ring-2', 'ring-rose-500');
+          cardPendente.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        alert(`⚠️ ATENÇÃO: Você possui ${tarefasPendentes.length} ${tarefasPendentes.length === 1 ? 'foto não avaliada' : 'fotos não avaliadas'}!\n\nPor favor, tome a decisão (Aprovar ou Reprovar) para todas as fotos antes de salvar.\n\nTarefa(s) pendente(s): #${tarefasPendentes.join(', #')}`);
+        return;
+      }
 
       const btn = document.getElementById('btn-finalizar-carro');
       btn.disabled = true;
@@ -393,7 +432,6 @@
       const { jsPDF } = window.jspdf;
       const docPdf = new jsPDF();
 
-      // Cabeçalho do PDF
       docPdf.setFontSize(18);
       docPdf.text("Relatório da Gincana - Classificação Geral", 14, 20);
       
@@ -401,7 +439,6 @@
       docPdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 28);
       docPdf.text(`Total de Carros/Equipes: ${enviosGlobais.length}`, 14, 34);
 
-      // Ordenar carros por pontuação (Maior -> Menor)
       const ranking = [...enviosGlobais].sort((a, b) => (b.pontuacao_total || 0) - (a.pontuacao_total || 0));
 
       const tableBody = ranking.map((item, index) => {
@@ -414,13 +451,12 @@
         return [posicao, carro, prova, status, pontos];
       });
 
-      // Tabela no PDF
       docPdf.autoTable({
         startY: 40,
         head: [['Posição', 'Equipe / Carro', 'Prova', 'Status', 'Pontuação Total']],
         body: tableBody,
         theme: 'striped',
-        headStyles: { fillColor: [16, 185, 129] } // Cor verde emerald
+        headStyles: { fillColor: [16, 185, 129] }
       });
 
       docPdf.save(`Resultado_Gincana_${new Date().toISOString().slice(0,10)}.pdf`);
@@ -428,16 +464,16 @@
 
     // 2. APAGAR TODOS OS DADOS DO BANCO (SENHA 123456)
     document.getElementById('btn-zerar-banco').addEventListener('click', async () => {
-      const senha = prompt("🔒 ATENÇÃO: Esta ação apagarante TODAS as provas e envios do banco de dados!\n\nDigite a senha de confirmação para continuar:");
+      const senha = prompt("🔒 ATENÇÃO: Esta ação apagará TODAS as provas e envios do banco de dados!\n\nDigite a senha de confirmação para continuar:");
 
-      if (senha === null) return; // cancelou
+      if (senha === null) return;
 
       if (senha !== "123456") {
         alert("❌ Senha incorreta! Operação cancelada.");
         return;
       }
 
-      if (!confirm("⚠️️ Tem certeza absoluta? Todos os dados serão excluídos do Firebase permanentemente.")) {
+      if (!confirm("⚠ Tem certeza absoluta? Todos os dados serão excluídos do Firebase permanentemente.")) {
         return;
       }
 
@@ -448,15 +484,12 @@
       try {
         const batch = writeBatch(db);
 
-        // Buscar todos os documentos de 'provas'
         const snapshotProvas = await getDocs(collection(db, "provas"));
         snapshotProvas.forEach((docSnap) => batch.delete(docSnap.ref));
 
-        // Buscar todos os documentos de 'envios_competidores'
         const snapshotEnvios = await getDocs(collection(db, "envios_competidores"));
         snapshotEnvios.forEach((docSnap) => batch.delete(docSnap.ref));
 
-        // Executa a exclusão em lote
         await batch.commit();
 
         alert("✅ Banco de dados limpo com sucesso! Todos os registros foram removidos.");
