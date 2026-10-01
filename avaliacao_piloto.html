@@ -18,7 +18,7 @@
       <span class="text-2xl">🤖⚖️</span>
       <div>
         <h1 class="text-lg font-bold text-white">Painel Piloto Automático (IA + Juiz)</h1>
-        <p class="text-xs text-slate-400">A IA sugere a decisão e a justificativa; o juiz humano confira e ajusta se necessário.</p>
+        <p class="text-xs text-slate-400">A IA sugere a decisão e justificativa; o juiz revisa, ajusta e confirma.</p>
       </div>
     </div>
     
@@ -96,11 +96,10 @@
 
   </main>
 
-  <!-- Módulo Firebase JS & Google Gen AI SDK -->
+  <!-- Módulo Firebase JS -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { initializeFirestore, collection, getDocs, doc, getDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-    import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
@@ -116,7 +115,6 @@
 
     // COLE A SUA CHAVE DO GOOGLE AI STUDIO AQUI
     const GEMINI_API_KEY = "SUA_CHAVE_API_AQUI";
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
     let enviosGlobais = [];
     let envioAtual = null;
@@ -216,29 +214,51 @@
 
     async function consultarIA(fotoGabaritoBase64, fotoCompetidorBase64, regra, pontosMax) {
       if (!GEMINI_API_KEY || GEMINI_API_KEY === "SUA_CHAVE_API_AQUI") {
-        return { aprovado: false, pontos: 0, justificativa: "Configure a chave de API do Gemini no código." };
+        return { aprovado: false, pontos: 0, justificativa: "Chave de API do Gemini não configurada no código." };
       }
 
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-      const prompt = `
+      const promptTexto = `
         Compare a FOTO GABARITO (REFERÊNCIA) com a FOTO DO COMPETIDOR.
         Critérios:
         - Qtd pessoas: ${regra?.qtd_competidores || 1}
         - Exige carro: ${regra?.exigir_carro ? 'SIM' : 'NÃO'}
         - Pegadinha: ${regra?.pegadinhas || 'Nenhuma'}
 
-        Aprove concedendo ${pontosMax} pontos se cumprir os critérios. Caso contrário, dê 0 e explique o motivo.
+        Aprove concedendo ${pontosMax} pontos se cumprir os critérios. Caso contrário, dê 0 e explique o motivo da reprovação.
         Responda ESTRITAMENTE em JSON puro:
         {"aprovado": true, "pontos": ${pontosMax}, "justificativa": "Explicação detalhada"}
       `;
 
+      const partG = base64ToGenerativePart(fotoGabaritoBase64);
+      const partC = base64ToGenerativePart(fotoCompetidorBase64);
+
+      const bodyData = {
+        contents: [
+          {
+            parts: [
+              { text: promptTexto },
+              { inlineData: { mimeType: partG.inlineData.mimeType, data: partG.inlineData.data } },
+              { inlineData: { mimeType: partC.inlineData.mimeType, data: partC.inlineData.data } }
+            ]
+          }
+        ]
+      };
+
       try {
-        const partG = base64ToGenerativePart(fotoGabaritoBase64);
-        const partC = base64ToGenerativePart(fotoCompetidorBase64);
-        const res = await model.generateContent([prompt, partG, partC]);
-        const text = res.response.text().trim().replace(/```json/g, '').replace(/```/g, '');
-        return JSON.parse(text);
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyData)
+        });
+
+        if (!response.ok) throw new Error("Erro na API do Gemini");
+
+        const data = await response.json();
+        const responseText = data.candidates[0].content.parts[0].text.trim();
+        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(cleanJson);
       } catch (e) {
         return { aprovado: false, pontos: 0, justificativa: "Erro ao consultar IA: " + e.message };
       }
@@ -316,10 +336,10 @@
             </div>
           </div>
 
-          <!-- CAMPO DE JUSTIFICATIVA -->
+          <!-- CAMPO DE JUSTIFICATIVA EDITÁVEL -->
           <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 space-y-2">
-            <label class="block text-xs font-bold text-slate-300 uppercase">📝 Justificativa da Avaliação:</label>
-            <textarea id="justificativa-${numTarefa}" rows="2" placeholder="Insira o motivo da aprovação ou reprovação..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+            <label class="block text-xs font-bold text-slate-300 uppercase">📝 Justificativa (Motivo da Aprovação / Reprovação):</label>
+            <textarea id="justificativa-${numTarefa}" rows="2" placeholder="Insira o motivo..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
           </div>
 
           <!-- DECISÃO E PONTUAÇÃO -->
@@ -343,7 +363,7 @@
 
         container.appendChild(card);
 
-        // Event listener para salvar o texto da justificativa ao digitar
+        // Atualiza a justificativa local conforme o juiz digita
         document.getElementById(`justificativa-${numTarefa}`).addEventListener('input', (e) => {
           justificativasLocais[numTarefa] = e.target.value;
         });
@@ -351,7 +371,7 @@
         if (item.pontos_concedidos !== undefined) {
           document.getElementById(`box-ia-${numTarefa}`).innerHTML = `
             <div class="font-bold text-emerald-400">✅ Avaliação Anterior Gravada</div>
-            <p class="text-slate-300">${item.justificativa || item.analise_ia?.justificativa || 'Avaliado previamente.'}</p>
+            <p class="text-slate-300">${item.justificativa || 'Avaliado previamente.'}</p>
           `;
           document.getElementById(`justificativa-${numTarefa}`).value = item.justificativa || "";
           justificativasLocais[numTarefa] = item.justificativa || "";
@@ -371,7 +391,6 @@
                 <p class="text-slate-300 mt-1">${resultado.justificativa}</p>
               `;
 
-              // Preenche a justificativa sugerida pela IA
               document.getElementById(`justificativa-${numTarefa}`).value = resultado.justificativa;
               justificativasLocais[numTarefa] = resultado.justificativa;
 
