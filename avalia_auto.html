@@ -6,9 +6,17 @@
     <title>Avaliação Automática por IA - Rally / Gincana</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDKs -->
+    <!-- Firebase SDKs Compat -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <!-- SDK Oficial do Gemini para JavaScript (Navegador) -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/genai": "https://esm.run/@google/genai"
+        }
+      }
+    </script>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800">
 
@@ -22,22 +30,31 @@
 
     <main class="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
 
-        <!-- Configuração e Seleção -->
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
+        <!-- Configuração da Chave de API e Seleções -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Chave de API do Gemini -->
+            <div class="md:col-span-4 bg-amber-50 border border-amber-200 p-3 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div class="text-xs text-amber-800">
+                    <span class="font-bold">Nota:</span> Insira sua chave moderna do Gemini (ex: começa com <code>AQ.</code>) para habilitar as análises visuais.
+                </div>
+                <input type="password" id="inputGeminiApiKey" placeholder="AQ.Ab8RN6JrqfqNiWaMmmY8MpTurRGR1CgAgXz2wSWluWHdD-sk_w" class="w-full sm:w-80 border border-amber-300 rounded-lg p-2 text-xs bg-white focus:ring-2 focus:ring-amber-500">
+            </div>
+
+            <div class="md:col-span-2">
                 <label class="block text-sm font-semibold mb-1">Selecione o Competidor / Carro:</label>
                 <select id="selectCompetidor" class="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500">
                     <option value="">Carregando competidores...</option>
                 </select>
             </div>
-            <div>
+            <div class="md:col-span-2">
                 <label class="block text-sm font-semibold mb-1">Selecione a Tarefa / PC:</label>
                 <select id="selectTarefa" class="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500">
                     <option value="">Selecione um competidor primeiro</option>
                 </select>
             </div>
-            <div class="flex items-end">
-                <button id="btnExecutarIA" onclick="executarAvaliacaoIA()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-lg shadow transition flex items-center justify-center gap-2 disabled:opacity-50" disabled>
+            
+            <div class="md:col-span-4 flex justify-end">
+                <button id="btnExecutarIA" onclick="executarAvaliacaoIA()" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-6 rounded-lg shadow transition flex items-center justify-center gap-2 disabled:opacity-50" disabled>
                     ✨ Analisar com IA (Gemini)
                 </button>
             </div>
@@ -93,9 +110,11 @@
 
     </main>
 
-    <!-- Script de Integração com Firebase e Gemini -->
-    <script>
-        // CONFIGURAÇÃO DO SEU FIREBASE (Substitua pelos seus dados reais do projeto)
+    <!-- Script de Integração Firebase + Gemini Client-Side -->
+    <script type="module">
+        import { GoogleGenAI } from "@google/genai";
+
+        // CONFIGURAÇÃO DO SEU FIREBASE 
         const firebaseConfig = {
       apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
       authDomain: "teste-2994e.firebaseapp.com",
@@ -122,7 +141,7 @@
         async function carregarCompetidores() {
             const select = document.getElementById('selectCompetidor');
             try {
-                const snapshot = await db.collection('competidores').get(); // Ajuste o nome da collection se necessário
+                const snapshot = await db.collection('competidores').get();
                 select.innerHTML = '<option value="">Selecione um competidor...</option>';
                 snapshot.forEach(doc => {
                     const data = doc.data();
@@ -146,7 +165,6 @@
 
             selectTarefa.innerHTML = '<option value="">Carregando tarefas...</option>';
             try {
-                // Exemplo buscando tarefas/respostas enviadas pelo competidor
                 const snapshot = await db.collection('competidores').doc(competidorId).collection('tarefas').get();
                 selectTarefa.innerHTML = '<option value="">Selecione a tarefa...</option>';
                 snapshot.forEach(doc => {
@@ -171,7 +189,7 @@
                     dadosAtuais.fotoCompetidor = data.fotoCompetidor || '';
                     dadosAtuais.regras = {
                         qtd_competidores: data.qtd_pessoas || 1,
-                        exigir_carro: data.exigir_carro || true,
+                        exigir_carro: data.exigir_carro !== undefined ? data.exigir_carro : true,
                         pegadinhas: data.pegadinhas || 'Nenhuma restrição especial',
                         pontos: data.pontos || 100
                     };
@@ -187,45 +205,72 @@
             }
         });
 
-        // Função que aciona a IA via Firebase Functions (Recomendado para proteger a chave moderna AQ...)
-        async function executarAvaliacaoIA() {
+        // Função executada ao clicar no botão de analisar com IA
+        window.executarAvaliacaoIA = async function() {
+            const apiKeyInput = document.getElementById('inputGeminiApiKey').value.trim();
+            if (!apiKeyInput) {
+                alert("Por favor, insira sua chave de API moderna do Gemini no campo superior antes de analisar.");
+                return;
+            }
+
             const btn = document.getElementById('btnExecutarIA');
             btn.textContent = "Analisando com Gemini...";
             btn.setAttribute('disabled', 'true');
 
             try {
-                // ATENÇÃO: Aqui você chamará a sua Cloud Function que protege a chave nova do Gemini
-                // Exemplo usando firebase.functions().httpsCallable('avaliarImagemComGemini')
-                
-                /*
-                const funcaoCloud = firebase.functions().httpsCallable('avaliarImagemComGemini');
-                const resultado = await funcaoCloud({
-                    gabaritoBase64: dadosAtuais.fotoGabarito,
-                    competidorBase64: dadosAtuais.fotoCompetidor,
-                    regras: dadosAtuais.regras
+                const ai = new GoogleGenAI({ apiKey: apiKeyInput });
+
+                // Limpa os prefixos do Base64 caso existam
+                const cleanGabarito = dadosAtuais.fotoGabarito.includes(",") 
+                    ? dadosAtuais.fotoGabarito.split(",")[1] 
+                    : dadosAtuais.fotoGabarito;
+                    
+                const cleanCompetidor = dadosAtuais.fotoCompetidor.includes(",") 
+                    ? dadosAtuais.fotoCompetidor.split(",")[1] 
+                    : dadosAtuais.fotoCompetidor;
+
+                const promptText = `
+                    Você é o juiz chefe de um rally e gincana de veículos. Sua tarefa é comparar rigorosamente a "Foto Gabarito" (referência correta) com a "Foto do Competidor" enviada.
+
+                    REGRAS DA TAREFA:
+                    - Quantidade de pessoas exigidas na foto: ${dadosAtuais.regras.qtd_competidores}
+                    - O carro do competidor deve aparecer na foto? ${dadosAtuais.regras.exigir_carro ? 'SIM' : 'NÃO'}
+                    - Instruções especiais / Pegadinhas: "${dadosAtuais.regras.pegadinhas}"
+                    - Valor total de pontos da tarefa: ${dadosAtuais.regras.pontos}
+
+                    Responda estritamente em formato JSON puro (sem blocos de código markdown ao redor, apenas o JSON cru) contendo exatamente estas chaves:
+                    {
+                      "aprovado": true ou false,
+                      "pontos_atribuidos": número (valor total ${dadosAtuais.regras.pontos} se aprovado, ou 0 se reprovado),
+                      "justificativa": "Texto detalhado explicando o motivo da aprovação ou detalhando o erro específico caso tenha sido reprovado."
+                    }
+                `;
+
+                const response = await ai.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: [
+                        { text: promptText },
+                        { inlineData: { mimeType: "image/jpeg", data: cleanGabarito } },
+                        { inlineData: { mimeType: "image/jpeg", data: cleanCompetidor } }
+                    ]
                 });
-                const dadosIA = resultado.data;
-                */
 
-                // SIMULAÇÃO DA RESPOSTA DA IA (Para testes visuais diretos no front-end)
-                setTimeout(() => {
-                    const aprovadoFicticio = Math.random() > 0.3; // Simula aprovação ou reprovação
-                    const dadosIA = {
-                        aprovado: aprovadoFicticio,
-                        pontos_atribuidos: aprovadoFicticio ? dadosAtuais.regras.pontos : 0,
-                        justificativa: aprovadoFicticio 
-                            ? "A IA analisou as imagens e confirmou que a quantidade de pessoas está correta, o veículo aparece no enquadramento e os elementos exigidos na regra batem perfeitamente com o gabarito."
-                            : "REPROVADO: A IA detectou divergência. O veículo do competidor não aparece nítido no fundo conforme estipulado na regra de enquadramento da prova."
-                    };
+                let respostaTexto = response.text.trim();
+                
+                // Limpeza de blocos de markdown caso o modelo adicione
+                if (respostaTexto.startsWith("```json")) {
+                    respostaTexto = respostaTexto.replace(/^```json/, "").replace(/```$/, "").trim();
+                } else if (respostaTexto.startsWith("```")) {
+                    respostaTexto = respostaTexto.replace(/^```/, "").replace(/```$/, "").trim();
+                }
 
-                    preencherResultadoIA(dadosIA);
-                    btn.textContent = "✨ Analisar com IA (Gemini)";
-                    btn.removeAttribute('disabled');
-                }, 1500);
+                const dadosIA = JSON.parse(respostaTexto);
+                preencherResultadoIA(dadosIA);
 
             } catch (error) {
                 console.error("Erro na chamada da IA:", error);
-                alert("Erro ao processar a avaliação automática.");
+                alert("Erro ao processar a avaliação automática: " + error.message);
+            } finally {
                 btn.textContent = "✨ Analisar com IA (Gemini)";
                 btn.removeAttribute('disabled');
             }
@@ -247,13 +292,18 @@
                 txtStatus.textContent = "Reprovado";
             }
 
-            txtPontos.textContent = res.pontos_atribuidos + " pts";
-            txtJustificativa.value = res.justificativa;
+            txtPontos.textContent = (res.pontos_atribuidos || 0) + " pts";
+            txtJustificativa.value = res.justificativa || "Sem justificativa fornecida.";
             document.getElementById('painelResultado').classList.remove('hidden');
         }
 
-        async function salvarAvaliacaoNoFirebase() {
+        window.salvarAvaliacaoNoFirebase = async function() {
             try {
+                if (!dadosAtuais.competidorId || !dadosAtuais.tarefaId) {
+                    alert("Nenhum competidor ou tarefa selecionada.");
+                    return;
+                }
+
                 const statusAprovado = document.getElementById('txtStatusIA').textContent === 'APROVADO';
                 const pontosAtribuidos = parseInt(document.getElementById('txtPontosIA').textContent) || 0;
                 const justificativaFinal = document.getElementById('txtJustificativaIA').value;
@@ -262,17 +312,17 @@
                     status: statusAprovado ? 'aprovado' : 'reprovado',
                     pontos_ganhos: pontosAtribuidos,
                     justificativa_ia: justificativaFinal,
-                    avaliado_por: 'IA + Juiz'
+                    avaliado_por: 'IA (Gemini)'
                 });
 
                 alert("Avaliação salva com sucesso no Firestore!");
             } catch (err) {
                 console.error("Erro ao salvar:", err);
-                alert("Erro ao salvar dados.");
+                alert("Erro ao salvar dados no Firebase.");
             }
         }
 
-        // Inicializar carregamento
+        // Inicializar carregamento ao abrir a página
         window.onload = carregarCompetidores;
     </script>
 </body>
