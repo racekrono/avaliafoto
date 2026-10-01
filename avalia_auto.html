@@ -68,7 +68,7 @@
       <span style="font-size: 1.5rem;">🤖⚖️</span>
       <div>
         <h1 style="font-size: 1.125rem; font-weight: bold; color: white; margin: 0;">Painel do Juiz IA - Avaliação Automática</h1>
-        <p class="text-xs text-slate-400" style="margin: 0;">Análise de Gabaritos via Groq Vision API (Llama 3.2)</p>
+        <p class="text-xs text-slate-400" style="margin: 0;">Análise de Gabaritos via Groq (Qwen 3.8 Vision)</p>
       </div>
     </div>
     
@@ -431,7 +431,7 @@
       document.getElementById('eval-placar-rodape').textContent = `${total} pts`;
     }
 
-    // FUNÇÃO DE CHAMADA À API GROQ VISION PARA UMA TAREFA (COM CORREÇÃO DE PREFIXO BASE64)
+    // FUNÇÃO DE CHAMADA À API GROQ COM O MODELO QWEN VISION ATUALIZADO
     window.avaliarTarefaUnicaIA = async function(numTarefa, pontosMaximos) {
       if (!envioAtual || !envioAtual.respostas) return;
 
@@ -468,7 +468,7 @@ Responda estritamente em formato JSON válido com duas chaves:
 2. "justificativa": Uma explicação curta e direta em português (máximo 2 frases) justificando o porquê da aprovação ou reprovação com base nos detalhes visuais.`;
 
         const payload = {
-          model: "llama-3.2-11b-vision-preview",
+          model: "qwen/qwen3.8-27b",
           messages: [
             {
               role: "user",
@@ -624,7 +624,7 @@ Critérios: Pessoas exigidas: ${resp.regras?.qtd_competidores || 1}, Exigir carr
 Responda estritamente em JSON com chaves: "status" ("APROVADO" ou "REPROVADO") e "justificativa" (curta, máx 2 frases).`;
 
               const payload = {
-                model: "llama-3.2-11b-vision-preview",
+                model: "qwen/qwen3.8-27b",
                 messages: [{
                   role: "user",
                   content: [
