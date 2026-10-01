@@ -83,13 +83,11 @@
 
   </main>
 
-  <!-- Módulo Firebase JS & Google Gen AI SDK -->
+  <!-- Módulo Firebase JS -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { initializeFirestore, collection, getDocs, doc, getDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-    import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai";
 
-    // 1. CONFIGURAÇÃO DO FIREBASE (Mantém a mesma do seu projeto)
     const firebaseConfig = {
       apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
       authDomain: "teste-2994e.firebaseapp.com",
@@ -102,9 +100,8 @@
     const app = initializeApp(firebaseConfig);
     const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
-    // 2. SUA CHAVE DE API DO GOOGLE AI STUDIO (Cole a sua chave aqui dentro das aspas)
-    const GEMINI_API_KEY = "AQ.Ab8RN6KypNeScTxDwSBKjOAqfXld_HHfw4vjuW635CWcecB1Ig"; 
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    // COLE A SUA CHAVE DO GOOGLE AI STUDIO AQUI
+    const GEMINI_API_KEY = "SUA_CHAVE_API_AQUI"; 
 
     let enviosGlobais = [];
 
@@ -168,7 +165,6 @@
       });
     }
 
-    // Auxiliar para converter Base64 para o formato aceito pelo Gemini SDK
     function base64ToGenerativePart(base64Data) {
       if (!base64Data) return null;
       let mimeType = "image/jpeg";
@@ -183,16 +179,15 @@
       return { inlineData: { data: data, mimeType: mimeType } };
     }
 
-    // Função que chama o Gemini para comparar as imagens
     async function avaliarFotoComIA(fotoGabaritoBase64, fotoCompetidorBase64, regra, pontosMax) {
       if (!GEMINI_API_KEY || GEMINI_API_KEY === "SUA_CHAVE_API_AQUI") {
         alert("⚠️ Por favor, insira sua chave do Google AI Studio na variável GEMINI_API_KEY no código!");
         throw new Error("Chave de API não configurada.");
       }
 
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-      const prompt = `
+      const promptTexto = `
         Você é um juiz de gincana fotográfica automatizada.
         Analise a imagem 1 (FOTO GABARITO DE REFERÊNCIA) e a imagem 2 (FOTO ENVIADA PELO COMPETIDOR).
 
@@ -208,13 +203,37 @@
         {"aprovado": true, "pontos": ${pontosMax}, "justificativa": "Explicação curta"}
       `;
 
-      try {
-        const partG = base64ToGenerativePart(fotoGabaritoBase64);
-        const partC = base64ToGenerativePart(fotoCompetidorBase64);
+      const partG = base64ToGenerativePart(fotoGabaritoBase64);
+      const partC = base64ToGenerativePart(fotoCompetidorBase64);
 
-        const result = await model.generateContent([prompt, partG, partC]);
-        const responseText = result.response.text().trim().replace(/```json/g, '').replace(/```/g, '');
-        return JSON.parse(responseText);
+      const bodyData = {
+        contents: [
+          {
+            parts: [
+              { text: promptTexto },
+              { inlineData: { mimeType: partG.inlineData.mimeType, data: partG.inlineData.data } },
+              { inlineData: { mimeType: partC.inlineData.mimeType, data: partC.inlineData.data } }
+            ]
+          }
+        ]
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyData)
+        });
+
+        if (!response.ok) {
+          const errJson = await response.json();
+          throw new Error(errJson.error?.message || "Erro na API do Gemini");
+        }
+
+        const data = await response.json();
+        const responseText = data.candidates[0].content.parts[0].text.trim();
+        const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(cleanJson);
 
       } catch (e) {
         console.error("Erro na IA:", e);
@@ -222,7 +241,6 @@
       }
     }
 
-    // Execução em lote dos carros pendentes
     document.getElementById('btn-iniciar-ia').addEventListener('click', async () => {
       const pendentes = enviosGlobais.filter(e => (e.status_avaliacao || 'pendente') === 'pendente');
 
@@ -281,6 +299,7 @@
           respostasAtualizadas.push({
             ...resp,
             pontos_concedidos: ptsConcedidos,
+            justificativa: analiseIA.justificativa,
             analise_ia: analiseIA
           });
         }
@@ -307,7 +326,6 @@
       }, 1000);
     });
 
-    // Exportar PDF
     document.getElementById('btn-exportar-pdf').addEventListener('click', () => {
       if (enviosGlobais.length === 0) return alert("Sem dados!");
       const { jsPDF } = window.jspdf;
