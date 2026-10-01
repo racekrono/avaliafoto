@@ -197,9 +197,6 @@
     const app = initializeApp(firebaseConfig);
     const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
-    // Sua Chave no formato AQ...
-    const GEMINI_API_KEY = "AQ.Ab8RN6LbTbV2Ip3VWI5mxwCioG25R4p25ZFeMmtPygTpDAVDjw";
-
     let enviosGlobais = [];
     let envioAtual = null;
     let notasLocais = {};     
@@ -481,7 +478,7 @@
       }
     });
 
-    // --- LÓGICA DE AVALIAÇÃO AUTOMÁTICA (IA) ---
+    // --- LÓGICA DE AVALIAÇÃO AUTOMÁTICA (IA VIA CLOUD FUNCTION) ---
     async function popularSelectCompetidoresAuto() {
       const selectComp = document.getElementById('auto-select-competidor');
       selectComp.innerHTML = '<option value="">Selecione um carro...</option>';
@@ -548,7 +545,7 @@
 
       const btn = document.getElementById('btn-analisar-ia');
       btn.disabled = true;
-      btn.innerHTML = '<span>⏳ Analisando com Gemini...</span>';
+      btn.innerHTML = '<span>⏳ Analisando via Servidor...</span>';
 
       try {
         document.getElementById('auto-img-gabarito').src = respostaObj.foto_gabarito_url;
@@ -560,49 +557,27 @@
           urlParaBase64(respostaObj.foto_competidor_url)
         ]);
 
-        const prompt = `Você é um juiz rigoroso de uma gincana de rali e automóveis. 
-Compare a "Foto do Gabarito (Referência)" com a "Foto enviada pelo Competidor".
-Critérios da tarefa: 
-- Quantidade de pessoas exigidas: ${respostaObj.regras?.qtd_competidores || 1}
-- Exige Carro: ${respostaObj.regras?.exigir_carro ? 'Sim' : 'Não'}
+        // URL da sua Cloud Function do Firebase
+        const functionUrl = "https://us-central1-teste-2994e.cloudfunctions.net/analisarFotoGemini";
 
-Responda estritamente em formato JSON com duas chaves:
-1. "aprovado": booleano (true se cumpre perfeitamente o gabarito e critérios, false caso contrário).
-2. "justificativa": string detalhada em português explicando o motivo da aprovação ou reprovação.`;
-
-        // Requisição ajustada para usar Bearer Token com a chave AQ...
-        const apiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`, {
+        const apiResponse = await fetch(functionUrl, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${GEMINI_API_KEY}`
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: "Foto do Gabarito Oficial:" },
-                  { inline_data: { mime_type: "image/jpeg", data: base64Gabarito } },
-                  { text: "Foto enviada pelo Competidor:" },
-                  { inline_data: { mime_type: "image/jpeg", data: base64Competidor } },
-                  { text: prompt }
-                ]
-              }
-            ],
-            generationConfig: {
-              responseMimeType: "application/json"
-            }
+            base64Gabarito,
+            base64Competidor,
+            regras: respostaObj.regras || {}
           })
         });
 
         if (!apiResponse.ok) {
           const errData = await apiResponse.json();
-          throw new Error(errData.error?.message || "Erro de autenticação na API do Gemini");
+          throw new Error(errData.error || "Erro ao processar na nuvem");
         }
 
-        const data = await apiResponse.json();
-        const textoResposta = data.candidates[0].content.parts[0].text;
-        const resultadoJson = JSON.parse(textoResposta);
+        const resultadoJson = await apiResponse.json();
         
         const badge = document.getElementById('auto-badge-status');
         const texto = document.getElementById('auto-texto-justificativa');
