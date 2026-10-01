@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avaliação Automática por IA - Rally / Gincana</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800">
+
+    <!-- Header -->
+    <header class="bg-slate-900 text-white shadow-md py-4 px-6 flex justify-between items-center">
+        <h1 class="text-xl font-bold flex items-center gap-2">
+            🤖 Painel de Avaliação Automática por IA
+        </h1>
+        <a href="index.html" class="text-sm bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition">Voltar ao Início</a>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
+
+        <!-- Configuração e Seleção -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm font-semibold mb-1">Selecione o Competidor / Carro:</label>
+                <select id="selectCompetidor" class="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500">
+                    <option value="">Carregando competidores...</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold mb-1">Selecione a Tarefa / PC:</label>
+                <select id="selectTarefa" class="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500">
+                    <option value="">Selecione um competidor primeiro</option>
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button id="btnExecutarIA" onclick="executarAvaliacaoIA()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-lg shadow transition flex items-center justify-center gap-2 disabled:opacity-50" disabled>
+                    ✨ Analisar com IA (Gemini)
+                </button>
+            </div>
+        </div>
+
+        <!-- Área de Comparação de Imagens -->
+        <div id="painelComparacao" class="grid grid-cols-1 md:grid-cols-2 gap-6 hidden">
+            <!-- Foto Gabarito -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center">
+                <h3 class="font-bold text-gray-700 mb-2">📸 Foto Gabarito (Referência)</h3>
+                <div class="w-full h-64 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center border">
+                    <img id="imgGabarito" src="" alt="Gabarito" class="object-contain h-full w-full">
+                </div>
+            </div>
+            <!-- Foto Enviada pelo Competidor -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col items-center">
+                <h3 class="font-bold text-gray-700 mb-2">🚙 Foto do Competidor</h3>
+                <div class="w-full h-64 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center border">
+                    <img id="imgCompetidor" src="" alt="Competidor" class="object-contain h-full w-full">
+                </div>
+            </div>
+        </div>
+
+        <!-- Resultado da Análise da IA -->
+        <div id="painelResultado" class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hidden space-y-4">
+            <h3 class="text-lg font-bold border-b pb-2 flex items-center gap-2">
+                📊 Parecer Automático da Inteligência Artificial
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="p-4 rounded-lg border flex items-center justify-between" id="boxStatusAprovacao">
+                    <span class="font-semibold text-gray-600">Status da Tarefa:</span>
+                    <span id="txtStatusIA" class="px-3 py-1 rounded-full text-sm font-bold uppercase">Aguardando</span>
+                </div>
+                <div class="p-4 rounded-lg border bg-gray-50 flex items-center justify-between">
+                    <span class="font-semibold text-gray-600">Pontos Sugeridos:</span>
+                    <span id="txtPontosIA" class="text-xl font-extrabold text-blue-600">0 pts</span>
+                </div>
+            </div>
+
+            <!-- Campo de Justificativa (Principalmente para reprovações) -->
+            <div>
+                <label class="block text-sm font-semibold mb-1 text-gray-700">💬 Justificativa detalhada da IA (Motivo da Aprovação/Reprovação):</label>
+                <textarea id="txtJustificativaIA" rows="4" class="w-full border rounded-lg p-3 bg-gray-50 text-sm font-mono focus:ring-2 focus:ring-blue-500" placeholder="A IA detalhará aqui o motivo pelo qual aprovou ou reprovou a imagem com base nas regras..."></textarea>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-2">
+                <button onclick="salvarAvaliacaoNoFirebase()" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg shadow transition">
+                    💾 Salvar Avaliação no Sistema
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Script de Integração com Firebase e Gemini -->
+    <script>
+        // CONFIGURAÇÃO DO SEU FIREBASE (Substitua pelos seus dados reais do projeto)
+        const firebaseConfig = {
+      apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
+      authDomain: "teste-2994e.firebaseapp.com",
+      projectId: "teste-2994e",
+      storageBucket: "teste-2994e.firebasestorage.app",
+      messagingSenderId: "614899420753",
+      appId: "1:614899420753:web:5fc23c3d0e8facdf593270"
+    };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        let dadosAtuais = {
+            competidorId: null,
+            tarefaId: null,
+            regras: {},
+            fotoGabarito: '',
+            fotoCompetidor: ''
+        };
+
+        // Carregar lista de competidores ao iniciar
+        async function carregarCompetidores() {
+            const select = document.getElementById('selectCompetidor');
+            try {
+                const snapshot = await db.collection('competidores').get(); // Ajuste o nome da collection se necessário
+                select.innerHTML = '<option value="">Selecione um competidor...</option>';
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    select.innerHTML += `<option value="${doc.id}">${data.nome || data.carro || 'Competidor ' + doc.id}</option>`;
+                });
+            } catch (error) {
+                console.error("Erro ao carregar competidores:", error);
+                select.innerHTML = '<option value="">Erro ao carregar do Firestore</option>';
+            }
+        }
+
+        document.getElementById('selectCompetidor').addEventListener('change', async (e) => {
+            const competidorId = e.target.value;
+            dadosAtuais.competidorId = competidorId;
+            const selectTarefa = document.getElementById('selectTarefa');
+            
+            if (!competidorId) {
+                selectTarefa.innerHTML = '<option value="">Selecione um competidor primeiro</option>';
+                return;
+            }
+
+            selectTarefa.innerHTML = '<option value="">Carregando tarefas...</option>';
+            try {
+                // Exemplo buscando tarefas/respostas enviadas pelo competidor
+                const snapshot = await db.collection('competidores').doc(competidorId).collection('tarefas').get();
+                selectTarefa.innerHTML = '<option value="">Selecione a tarefa...</option>';
+                snapshot.forEach(doc => {
+                    const t = doc.data();
+                    selectTarefa.innerHTML += `<option value="${doc.id}">${t.titulo || 'Tarefa ' + doc.id}</option>`;
+                });
+            } catch (err) {
+                console.error("Erro tarefas:", err);
+            }
+        });
+
+        document.getElementById('selectTarefa').addEventListener('change', async (e) => {
+            const tarefaId = e.target.value;
+            dadosAtuais.tarefaId = tarefaId;
+            if (!tarefaId) return;
+
+            try {
+                const docRef = await db.collection('competidores').doc(dadosAtuais.competidorId).collection('tarefas').doc(tarefaId).get();
+                if (docRef.exists) {
+                    const data = docRef.data();
+                    dadosAtuais.fotoGabarito = data.fotoGabarito || '';
+                    dadosAtuais.fotoCompetidor = data.fotoCompetidor || '';
+                    dadosAtuais.regras = {
+                        qtd_competidores: data.qtd_pessoas || 1,
+                        exigir_carro: data.exigir_carro || true,
+                        pegadinhas: data.pegadinhas || 'Nenhuma restrição especial',
+                        pontos: data.pontos || 100
+                    };
+
+                    // Exibir imagens na tela
+                    document.getElementById('imgGabarito').src = dadosAtuais.fotoGabarito;
+                    document.getElementById('imgCompetidor').src = dadosAtuais.fotoCompetidor;
+                    document.getElementById('painelComparacao').classList.remove('hidden');
+                    document.getElementById('btnExecutarIA').removeAttribute('disabled');
+                }
+            } catch (err) {
+                console.error("Erro ao buscar dados da tarefa:", err);
+            }
+        });
+
+        // Função que aciona a IA via Firebase Functions (Recomendado para proteger a chave moderna AQ...)
+        async function executarAvaliacaoIA() {
+            const btn = document.getElementById('btnExecutarIA');
+            btn.textContent = "Analisando com Gemini...";
+            btn.setAttribute('disabled', 'true');
+
+            try {
+                // ATENÇÃO: Aqui você chamará a sua Cloud Function que protege a chave nova do Gemini
+                // Exemplo usando firebase.functions().httpsCallable('avaliarImagemComGemini')
+                
+                /*
+                const funcaoCloud = firebase.functions().httpsCallable('avaliarImagemComGemini');
+                const resultado = await funcaoCloud({
+                    gabaritoBase64: dadosAtuais.fotoGabarito,
+                    competidorBase64: dadosAtuais.fotoCompetidor,
+                    regras: dadosAtuais.regras
+                });
+                const dadosIA = resultado.data;
+                */
+
+                // SIMULAÇÃO DA RESPOSTA DA IA (Para testes visuais diretos no front-end)
+                setTimeout(() => {
+                    const aprovadoFicticio = Math.random() > 0.3; // Simula aprovação ou reprovação
+                    const dadosIA = {
+                        aprovado: aprovadoFicticio,
+                        pontos_atribuidos: aprovadoFicticio ? dadosAtuais.regras.pontos : 0,
+                        justificativa: aprovadoFicticio 
+                            ? "A IA analisou as imagens e confirmou que a quantidade de pessoas está correta, o veículo aparece no enquadramento e os elementos exigidos na regra batem perfeitamente com o gabarito."
+                            : "REPROVADO: A IA detectou divergência. O veículo do competidor não aparece nítido no fundo conforme estipulado na regra de enquadramento da prova."
+                    };
+
+                    preencherResultadoIA(dadosIA);
+                    btn.textContent = "✨ Analisar com IA (Gemini)";
+                    btn.removeAttribute('disabled');
+                }, 1500);
+
+            } catch (error) {
+                console.error("Erro na chamada da IA:", error);
+                alert("Erro ao processar a avaliação automática.");
+                btn.textContent = "✨ Analisar com IA (Gemini)";
+                btn.removeAttribute('disabled');
+            }
+        }
+
+        function preencherResultadoIA(res) {
+            const boxStatus = document.getElementById('boxStatusAprovacao');
+            const txtStatus = document.getElementById('txtStatusIA');
+            const txtPontos = document.getElementById('txtPontosIA');
+            const txtJustificativa = document.getElementById('txtJustificativaIA');
+
+            if (res.aprovado) {
+                boxStatus.className = "p-4 rounded-lg border bg-green-50 border-green-200 flex items-center justify-between";
+                txtStatus.className = "px-3 py-1 rounded-full text-sm font-bold uppercase bg-green-200 text-green-800";
+                txtStatus.textContent = "Aprovado";
+            } else {
+                boxStatus.className = "p-4 rounded-lg border bg-red-50 border-red-200 flex items-center justify-between";
+                txtStatus.className = "px-3 py-1 rounded-full text-sm font-bold uppercase bg-red-200 text-red-800";
+                txtStatus.textContent = "Reprovado";
+            }
+
+            txtPontos.textContent = res.pontos_atribuidos + " pts";
+            txtJustificativa.value = res.justificativa;
+            document.getElementById('painelResultado').classList.remove('hidden');
+        }
+
+        async function salvarAvaliacaoNoFirebase() {
+            try {
+                const statusAprovado = document.getElementById('txtStatusIA').textContent === 'APROVADO';
+                const pontosAtribuidos = parseInt(document.getElementById('txtPontosIA').textContent) || 0;
+                const justificativaFinal = document.getElementById('txtJustificativaIA').value;
+
+                await db.collection('competidores').doc(dadosAtuais.competidorId).collection('tarefas').doc(dadosAtuais.tarefaId).update({
+                    status: statusAprovado ? 'aprovado' : 'reprovado',
+                    pontos_ganhos: pontosAtribuidos,
+                    justificativa_ia: justificativaFinal,
+                    avaliado_por: 'IA + Juiz'
+                });
+
+                alert("Avaliação salva com sucesso no Firestore!");
+            } catch (err) {
+                console.error("Erro ao salvar:", err);
+                alert("Erro ao salvar dados.");
+            }
+        }
+
+        // Inicializar carregamento
+        window.onload = carregarCompetidores;
+    </script>
+</body>
+</html>
