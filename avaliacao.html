@@ -221,10 +221,14 @@
 
       respostas.forEach((item, index) => {
         const numTarefa = item.ordem || (index + 1);
-        const pontosSugeridos = item.regras?.pontos || 100;
+        const pontosOficiais = item.regras?.pontos || 100;
 
+        // Se já foi avaliado anteriormente mantém a nota dada, caso contrário inicia como 0
         const notaInicial = item.pontos_concedidos !== undefined ? item.pontos_concedidos : 0;
         notasLocais[numTarefa] = notaInicial;
+
+        const isAprovado = notaInicial === pontosOficiais && pontosOficiais > 0;
+        const isReprovado = item.pontos_concedidos !== undefined && notaInicial === 0;
 
         const card = document.createElement('div');
         card.className = "bg-slate-900 rounded-xl p-5 border border-slate-700 space-y-4";
@@ -235,8 +239,8 @@
               <span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">${numTarefa}</span>
               Tarefa #${numTarefa}
             </h3>
-            <span class="text-xs bg-slate-800 text-indigo-300 border border-indigo-800/60 px-3 py-1 rounded-full font-semibold">
-              Valor Sugerido: ${pontosSugeridos} PONTOS
+            <span class="text-xs bg-slate-800 text-emerald-400 border border-emerald-800/60 px-3 py-1 rounded-full font-bold">
+              VALOR DA FOTO: ${pontosOficiais} PONTOS
             </span>
           </div>
 
@@ -259,21 +263,21 @@
             </div>
           </div>
 
+          <!-- AÇÕES DO JUIZ (APROVAR OU REPROVAR) -->
           <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 flex flex-wrap justify-between items-center gap-4">
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-bold text-slate-300">Ação Rápida:</span>
-              <button type="button" onclick="atribuirNota(${numTarefa}, ${pontosSugeridos})" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded transition flex items-center gap-1">
-                <span>✅ Aprovar (${pontosSugeridos} pts)</span>
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold text-slate-300">Decisão:</span>
+              <button type="button" id="btn-aprovar-${numTarefa}" onclick="atribuirDecisao(${numTarefa}, ${pontosOficiais})" class="px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${isAprovado ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-700 text-slate-300 hover:bg-emerald-700 hover:text-white'}">
+                <span>✅ Aprovar (${pontosOficiais} pts)</span>
               </button>
-              <button type="button" onclick="atribuirNota(${numTarefa}, 0)" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold px-3 py-2 rounded transition flex items-center gap-1">
+              <button type="button" id="btn-reprovar-${numTarefa}" onclick="atribuirDecisao(${numTarefa}, 0)" class="px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${isReprovado ? 'bg-rose-600 text-white shadow-md' : 'bg-slate-700 text-slate-300 hover:bg-rose-700 hover:text-white'}">
                 <span>❌ Reprovar (0 pts)</span>
               </button>
             </div>
 
-            <div class="flex items-center gap-2">
-              <label class="text-xs text-slate-300 font-semibold">Nota Concedida:</label>
-              <input type="number" id="input-nota-${numTarefa}" value="${notaInicial}" min="0" onchange="atualizarNotaManual(${numTarefa}, this.value)" class="w-24 bg-slate-900 border border-slate-600 text-center font-bold text-emerald-400 rounded py-1.5 focus:ring-2 focus:ring-indigo-500 outline-none">
-              <span class="text-xs text-slate-400">pts</span>
+            <div class="text-right">
+              <span class="text-xs text-slate-400 block">Pontos na Tarefa:</span>
+              <span id="label-pts-${numTarefa}" class="text-lg font-bold ${notaInicial > 0 ? 'text-emerald-400' : 'text-slate-400'}">${notaInicial} pts</span>
             </div>
           </div>
         `;
@@ -284,17 +288,24 @@
       atualizarPlacarTotal();
     }
 
-    window.atribuirNota = function(numTarefa, pontos) {
+    window.atribuirDecisao = function(numTarefa, pontos) {
       notasLocais[numTarefa] = pontos;
-      document.getElementById(`input-nota-${numTarefa}`).value = pontos;
-      atualizarPlacarTotal();
-    };
 
-    window.atualizarNotaManual = function(numTarefa, valor) {
-      let pts = parseInt(valor);
-      if (isNaN(pts) || pts < 0) pts = 0;
-      notasLocais[numTarefa] = pts;
-      document.getElementById(`input-nota-${numTarefa}`).value = pts;
+      const btnAprovar = document.getElementById(`btn-aprovar-${numTarefa}`);
+      const btnReprovar = document.getElementById(`btn-reprovar-${numTarefa}`);
+      const labelPts = document.getElementById(`label-pts-${numTarefa}`);
+
+      if (pontos > 0) {
+        btnAprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-emerald-600 text-white shadow-md";
+        btnReprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-rose-700 hover:text-white";
+        labelPts.className = "text-lg font-bold text-emerald-400";
+      } else {
+        btnAprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-slate-700 text-slate-300 hover:bg-emerald-700 hover:text-white";
+        btnReprovar.className = "px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-rose-600 text-white shadow-md";
+        labelPts.className = "text-lg font-bold text-rose-400";
+      }
+
+      labelPts.textContent = `${pontos} pts`;
       atualizarPlacarTotal();
     };
 
