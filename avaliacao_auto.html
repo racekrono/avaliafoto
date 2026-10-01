@@ -22,8 +22,8 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
-      <button id="btn-exportar-pdf" class="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition flex items-center gap-1.5">
-        <span>📄 Exportar PDF</span>
+      <button id="btn-exportar-pdf" class="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition">
+        📄 Exportar PDF
       </button>
       <button id="btn-atualizar" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded-lg border border-slate-600 transition">
         🔄 Atualizar
@@ -33,19 +33,19 @@
 
   <main class="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
 
-    <!-- Painel Principal de Controle -->
+    <!-- Painel de Controle -->
     <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-4">
       <div class="flex flex-wrap justify-between items-center gap-4">
         <div>
           <h2 class="text-xl font-bold text-white">Fila de Processamento por IA</h2>
-          <p class="text-xs text-slate-400">Analisa o gabarito vs a foto enviada pelo competidor e aplica a pontuação cadastrada.</p>
+          <p class="text-xs text-slate-400">A IA compara o gabarito com a foto do competidor e atribui a pontuação de forma autônoma.</p>
         </div>
         <button id="btn-iniciar-ia" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-3 rounded-lg shadow-lg transition flex items-center gap-2 text-sm">
           <span>🚀 Iniciar Avaliação Automática por IA</span>
         </button>
       </div>
 
-      <!-- Barra de Progresso do Lote -->
+      <!-- Barra de Progresso -->
       <div id="progress-box" class="hidden bg-slate-900 p-4 rounded-lg border border-slate-700 space-y-2">
         <div class="flex justify-between text-xs text-slate-300">
           <span id="progress-text">Aguardando início...</span>
@@ -57,7 +57,7 @@
       </div>
     </div>
 
-    <!-- Tabela de Submissões e Resultados da IA -->
+    <!-- Tabela de Submissões -->
     <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-4">
       <h3 class="font-bold text-slate-200">Resultados e Status dos Carros</h3>
       <div class="overflow-x-auto">
@@ -83,12 +83,13 @@
 
   </main>
 
-  <!-- Módulo Firebase JS & Gemini SDK -->
+  <!-- Módulo Firebase JS & Google Gen AI SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { initializeFirestore, collection, getDocs, doc, getDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
     import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai";
 
+    // 1. CONFIGURAÇÃO DO FIREBASE (Mantém a mesma do seu projeto)
     const firebaseConfig = {
       apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
       authDomain: "teste-2994e.firebaseapp.com",
@@ -100,9 +101,10 @@
 
     const app = initializeApp(firebaseConfig);
     const db = initializeFirestore(app, { experimentalForceLongPolling: true });
-    
-    // Configura o Gemini com a API Key do projeto
-    const genAI = new GoogleGenerativeAI(firebaseConfig.apiKey);
+
+    // 2. SUA CHAVE DE API DO GOOGLE AI STUDIO (Cole a sua chave aqui dentro das aspas)
+    const GEMINI_API_KEY = "AQ.Ab8RN6KypNeScTxDwSBKjOAqfXld_HHfw4vjuW635CWcecB1Ig"; 
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
     let enviosGlobais = [];
 
@@ -166,60 +168,61 @@
       });
     }
 
-    // Função de auxílio para converter URL Base64 para estrutura de imagem aceita pelo Gemini
+    // Auxiliar para converter Base64 para o formato aceito pelo Gemini SDK
     function base64ToGenerativePart(base64Data) {
-      const matches = base64Data.match(/^data:(.+);base64,(.+)$/);
-      if (!matches) {
-        return { inlineData: { data: base64Data, mimeType: "image/jpeg" } };
+      if (!base64Data) return null;
+      let mimeType = "image/jpeg";
+      let data = base64Data;
+
+      if (base64Data.includes(";base64,")) {
+        const parts = base64Data.split(";base64,");
+        mimeType = parts[0].replace("data:", "");
+        data = parts[1];
       }
-      return {
-        inlineData: {
-          data: matches[2],
-          mimeType: matches[1]
-        }
-      };
+
+      return { inlineData: { data: data, mimeType: mimeType } };
     }
 
-    // Chamada à API da IA para analisar 1 foto
-    async function analisarFotoComIA(fotoGabaritoBase64, fotoCompetidorBase64, regra, pontosMax) {
+    // Função que chama o Gemini para comparar as imagens
+    async function avaliarFotoComIA(fotoGabaritoBase64, fotoCompetidorBase64, regra, pontosMax) {
+      if (!GEMINI_API_KEY || GEMINI_API_KEY === "SUA_CHAVE_API_AQUI") {
+        alert("⚠️ Por favor, insira sua chave do Google AI Studio na variável GEMINI_API_KEY no código!");
+        throw new Error("Chave de API não configurada.");
+      }
+
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const prompt = `
-        Você é um juiz de gincana fotográfica altamente rigoroso.
-        Sua tarefa é comparar a "FOTO GABARITO (REFERÊNCIA)" com a "FOTO DO COMPETIDOR".
+        Você é um juiz de gincana fotográfica automatizada.
+        Analise a imagem 1 (FOTO GABARITO DE REFERÊNCIA) e a imagem 2 (FOTO ENVIADA PELO COMPETIDOR).
 
-        CRITÉRIOS OBRIGATÓRIOS A VERIFICAR:
-        1. Quantidade de Pessoas exigidas na foto: ${regra?.qtd_competidores || 1}
-        2. Carro da Equipe é obrigatório estar visível na foto: ${regra?.exigir_carro ? 'SIM' : 'NÃO'}
-        3. Instrução / Pegadinha Especial: ${regra?.pegadinhas || 'Nenhuma'}
+        CRITÉRIOS DA PROVA:
+        - Quantidade de pessoas exigidas: ${regra?.qtd_competidores || 1}
+        - Exige carro visível: ${regra?.exigir_carro ? 'SIM' : 'NÃO'}
+        - Pegadinha ou regra especial: ${regra?.pegadinhas || 'Nenhuma'}
 
-        INSTRUÇÕES DE DECISÃO:
-        - Compare os cenários, elementos, poses e o cumprimento exato dos critérios.
-        - Se a foto cumprir os critérios do gabarito, APROVE concedendo exatamente ${pontosMax} pontos.
-        - Se a foto descumprir os critérios ou não tiver relação com o gabarito, REPROVE concedendo 0 pontos.
+        INSTRUÇÃO:
+        Se a foto do competidor cumprir os requisitos e corresponder ao gabarito, aprove atribuindo ${pontosMax} pontos. Caso contrário, reprove atribuindo 0 pontos.
 
-        Responda ESTRITAMENTE em formato JSON sem marcação markdown no seguinte formato:
-        {
-          "aprovado": true,
-          "pontos": ${pontosMax},
-          "justificativa": "Resumo da decisão em uma frase simples"
-        }
+        Responda ESTRITAMENTE em formato JSON puro, sem blocos markdown:
+        {"aprovado": true, "pontos": ${pontosMax}, "justificativa": "Explicação curta"}
       `;
 
       try {
-        const partGabarito = base64ToGenerativePart(fotoGabaritoBase64);
-        const partCompetidor = base64ToGenerativePart(fotoCompetidorBase64);
+        const partG = base64ToGenerativePart(fotoGabaritoBase64);
+        const partC = base64ToGenerativePart(fotoCompetidorBase64);
 
-        const result = await model.generateContent([prompt, partGabarito, partCompetidor]);
-        const text = result.response.text().trim().replace(/```json/g, '').replace(/```/g, '');
-        return JSON.parse(text);
+        const result = await model.generateContent([prompt, partG, partC]);
+        const responseText = result.response.text().trim().replace(/```json/g, '').replace(/```/g, '');
+        return JSON.parse(responseText);
+
       } catch (e) {
-        console.error("Erro na resposta da IA:", e);
-        return { aprovado: false, pontos: 0, justificativa: "Erro ao processar imagem via IA" };
+        console.error("Erro na IA:", e);
+        return { aprovado: false, pontos: 0, justificativa: "Erro ao analisar: " + e.message };
       }
     }
 
-    // PROCESSAMENTO EM LOTE DE TODOS OS CARROS PENDENTES
+    // Execução em lote dos carros pendentes
     document.getElementById('btn-iniciar-ia').addEventListener('click', async () => {
       const pendentes = enviosGlobais.filter(e => (e.status_avaliacao || 'pendente') === 'pendente');
 
@@ -241,14 +244,13 @@
       for (let i = 0; i < pendentes.length; i++) {
         const envio = pendentes[i];
         const statusCell = document.getElementById(`status-ia-${envio.id}`);
-        if (statusCell) statusCell.textContent = '🤖 Analisando com IA...';
+        if (statusCell) statusCell.textContent = '🤖 Analisando...';
 
         progressText.textContent = `Avaliando Carro #${envio.numero_carro} (${i + 1} de ${pendentes.length})...`;
         const pct = Math.round(((i) / pendentes.length) * 100);
         progressPercent.textContent = `${pct}%`;
         progressBar.style.width = `${pct}%`;
 
-        // Busca dados da prova cadastrada
         let tarefasGabarito = [];
         if (envio.prova_id) {
           try {
@@ -266,7 +268,7 @@
           const tarefaOriginal = tarefasGabarito.find(t => (t.ordem || 0) === numT) || tarefasGabarito[idx];
           const pontosMax = tarefaOriginal?.pontos ?? resp.regras?.pontos ?? 100;
 
-          const analiseIA = await analisarFotoComIA(
+          const analiseIA = await avaliarFotoComIA(
             resp.foto_gabarito_url,
             resp.foto_competidor_url,
             resp.regras || tarefaOriginal,
@@ -283,7 +285,6 @@
           });
         }
 
-        // Salva resultado no Firestore
         await updateDoc(doc(db, "envios_competidores", envio.id), {
           respostas: respostasAtualizadas,
           pontuacao_total: somaTotal,
@@ -296,7 +297,7 @@
 
       progressPercent.textContent = `100%`;
       progressBar.style.width = `100%`;
-      progressText.textContent = "✅ Todas as submissões foram avaliadas pela IA!";
+      progressText.textContent = "✅ Processamento concluído!";
 
       btn.disabled = false;
       btn.classList.remove('opacity-50');
