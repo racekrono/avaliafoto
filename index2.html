@@ -21,33 +21,25 @@
 
   <main class="max-w-3xl mx-auto px-4 py-8 space-y-6">
 
-    <!-- PASSO 1: IDENTIFICAÇÃO E ESCOLHA DA PROVA -->
+    <!-- PASSO 1: IDENTIFICAÇÃO DO COMPETIDOR -->
     <section id="step-1" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
       <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
         <span class="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-sm">1</span>
         <div>
           <h2 class="text-lg font-bold text-slate-900">Identificação do Competidor</h2>
-          <p class="text-xs text-slate-500">Selecione a etapa e informe o número do seu veículo/equipe.</p>
+          <p class="text-xs text-slate-500" id="subtitulo-identificacao">Buscando prova ativa...</p>
         </div>
       </div>
 
       <form id="form-step-1" class="space-y-5">
         
-        <!-- Seleção da Prova -->
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1">Selecione a Prova / Etapa</label>
-          <select id="select-prova" required class="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white">
-            <option value="" disabled selected>Carregando provas disponíveis...</option>
-          </select>
-        </div>
-
         <!-- Número do Carro / Competidor -->
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1">Número do Carro / Equipe</label>
-          <input type="number" id="numero-carro" min="1" required placeholder="Ex: 42" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none">
+          <input type="number" id="numero-carro" min="1" required placeholder="Ex: 42" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-lg font-bold text-slate-800">
         </div>
 
-        <button type="submit" id="btn-iniciar" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg transition shadow-sm flex items-center justify-center gap-2">
+        <button type="submit" id="btn-iniciar" disabled class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg transition shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
           <span>Iniciar Envio das Fotos</span>
           <span>→</span>
         </button>
@@ -63,14 +55,14 @@
           <span class="text-xs font-bold text-emerald-700 uppercase tracking-wider" id="info-carro">Carro #--</span>
           <h2 id="info-prova" class="text-lg font-bold text-slate-900">--</h2>
         </div>
-        <button id="btn-trocar-prova" type="button" class="text-xs text-emerald-700 hover:underline font-semibold">
-          Alterar dados
+        <button id="btn-trocar-carro" type="button" class="text-xs text-emerald-700 hover:underline font-semibold">
+          Alterar número do carro
         </button>
       </div>
 
       <form id="form-step-2" class="space-y-6">
         
-        <!-- Contêiner dinâmico gerado com base nas tarefas cadastradas -->
+        <!-- Contêiner dinâmico gerado com base nas tarefas da prova ativa -->
         <div id="container-tarefas" class="space-y-6"></div>
 
         <!-- Barra de Progresso / Envio -->
@@ -96,7 +88,7 @@
   <!-- Módulo Firebase JS (v10) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { initializeFirestore, collection, getDocs, addDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { initializeFirestore, collection, getDocs, addDoc, serverTimestamp, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBF-_Q5NJIhEjWhA-4kdffoWbGY5Z4jnxw",
@@ -112,68 +104,65 @@
       experimentalForceLongPolling: true
     });
 
-    let provasCadastradas = [];
-    let provaSelecionada = null;
+    let provaAtiva = null;
     let numeroCarroGlobal = "";
 
-    // Carregar provas do Firebase ao iniciar a página
-    async function carregarProvas() {
-      const select = document.getElementById('select-prova');
-      select.innerHTML = '<option value="" disabled selected>Selecione uma prova...</option>';
+    // Carrega automaticamente a prova mais recente cadastrada no Admin
+    async function carregarProvaAtiva() {
+      const subtitulo = document.getElementById('subtitulo-identificacao');
+      const btnIniciar = document.getElementById('btn-iniciar');
 
       try {
-        const q = query(collection(db, "provas"), orderBy("criado_em", "desc"));
+        const q = query(collection(db, "provas"), orderBy("criado_em", "desc"), limit(1));
         const snapshot = await getDocs(q);
 
         if (snapshot.empty) {
-          select.innerHTML = '<option value="" disabled>Nenhuma prova cadastrada ainda</option>';
+          subtitulo.textContent = "Nenhuma prova cadastrada no momento.";
+          subtitulo.className = "text-xs text-rose-500 font-semibold";
           return;
         }
 
-        provasCadastradas = [];
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          provasCadastradas.push({ id: doc.id, ...data });
-
-          const option = document.createElement('option');
-          option.value = doc.id;
-          option.textContent = `${data.nome_prova} (${data.qtd_tarefas} ${data.qtd_tarefas === 1 ? 'foto' : 'fotos'})`;
-          select.appendChild(option);
+        snapshot.forEach((docSnap) => {
+          provaAtiva = { id: docSnap.id, ...docSnap.data() };
         });
+
+        subtitulo.textContent = `Prova Ativa: ${provaAtiva.nome_prova} (${provaAtiva.qtd_tarefas} ${provaAtiva.qtd_tarefas === 1 ? 'foto' : 'fotos'})`;
+        subtitulo.className = "text-xs text-emerald-600 font-semibold";
+        btnIniciar.disabled = false;
+
       } catch (err) {
-        console.error("Erro ao carregar provas:", err);
-        select.innerHTML = '<option value="" disabled>Erro ao carregar provas</option>';
+        console.error("Erro ao carregar prova ativa:", err);
+        subtitulo.textContent = "Erro ao conectar com o servidor.";
+        subtitulo.className = "text-xs text-rose-500 font-semibold";
       }
     }
 
-    carregarProvas();
+    carregarProvaAtiva();
 
-    // Passo 1: Selecionar Prova + Número do Carro
+    // Passo 1: Informar número do carro
     document.getElementById('form-step-1').addEventListener('submit', (e) => {
       e.preventDefault();
-      const provaId = document.getElementById('select-prova').value;
       numeroCarroGlobal = document.getElementById('numero-carro').value;
 
-      provaSelecionada = provasCadastradas.find(p => p.id === provaId);
-      if (!provaSelecionada) return;
+      if (!provaAtiva || !numeroCarroGlobal) return;
 
       document.getElementById('info-carro').textContent = `Carro / Equipe #${numeroCarroGlobal}`;
-      document.getElementById('info-prova').textContent = provaSelecionada.nome_prova;
+      document.getElementById('info-prova').textContent = provaAtiva.nome_prova;
 
-      gerarCamposDeEnvio(provaSelecionada.tarefas);
+      gerarCamposDeEnvio(provaAtiva.tarefas);
 
       document.getElementById('step-1').classList.add('hidden');
       document.getElementById('step-2').classList.remove('hidden');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
-    // Botão para alterar prova/dados
-    document.getElementById('btn-trocar-prova').addEventListener('click', () => {
+    // Botão para alterar o número do carro
+    document.getElementById('btn-trocar-carro').addEventListener('click', () => {
       document.getElementById('step-2').classList.add('hidden');
       document.getElementById('step-1').classList.remove('hidden');
     });
 
-    // Renderiza dynamicamente os campos para cada tarefa da prova (SEM mostrar número de pessoas ou pegadinhas)
+    // Renderiza dynamicamente os campos para cada tarefa da prova ativa
     function gerarCamposDeEnvio(tarefas) {
       const container = document.getElementById('container-tarefas');
       container.innerHTML = '';
@@ -275,10 +264,10 @@
 
       try {
         const respostasArr = [];
-        const totalTarefas = provaSelecionada.tarefas.length;
+        const totalTarefas = provaAtiva.tarefas.length;
 
         for (let i = 0; i < totalTarefas; i++) {
-          const numTarefa = provaSelecionada.tarefas[i].ordem || (i + 1);
+          const numTarefa = provaAtiva.tarefas[i].ordem || (i + 1);
           
           statusTexto.textContent = `Otimizando sua foto ${i + 1} de ${totalTarefas}...`;
           statusBarra.style.width = `${Math.round(((i) / totalTarefas) * 80)}%`;
@@ -291,11 +280,12 @@
           respostasArr.push({
             ordem: numTarefa,
             foto_competidor_url: fotoBase64,
-            foto_gabarito_url: provaSelecionada.tarefas[i].foto_gabarito_url,
+            foto_gabarito_url: provaAtiva.tarefas[i].foto_gabarito_url,
             regras: {
-              qtd_competidores: provaSelecionada.tarefas[i].qtd_competidores,
-              exigir_carro: provaSelecionada.tarefas[i].exigir_carro,
-              pegadinhas: provaSelecionada.tarefas[i].pegadinhas || ""
+              pontos: provaAtiva.tarefas[i].pontos || 100,
+              qtd_competidores: provaAtiva.tarefas[i].qtd_competidores,
+              exigir_carro: provaAtiva.tarefas[i].exigir_carro,
+              pegadinhas: provaAtiva.tarefas[i].pegadinhas || ""
             }
           });
         }
@@ -305,8 +295,8 @@
 
         // Salva na coleção 'envios_competidores'
         await addDoc(collection(db, "envios_competidores"), {
-          prova_id: provaSelecionada.id,
-          nome_prova: provaSelecionada.nome_prova,
+          prova_id: provaAtiva.id,
+          nome_prova: provaAtiva.nome_prova,
           numero_carro: numeroCarroGlobal,
           respostas: respostasArr,
           status_avaliacao: "pendente",
